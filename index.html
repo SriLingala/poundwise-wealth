@@ -329,6 +329,50 @@
           </article>
         </section>
 
+        <section class="panel cloud-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Cloud database</p>
+              <h2>Supabase sync</h2>
+              <p class="muted">Save and sync your full budget across iPhone and computer.</p>
+            </div>
+            <span class="pill" id="cloudStatus">Not connected</span>
+          </div>
+          <div class="cloud-grid">
+            <label>
+              <span>Supabase project URL</span>
+              <input type="url" id="supabaseUrl" placeholder="https://your-project.supabase.co" />
+            </label>
+            <label>
+              <span>Supabase anon public key</span>
+              <input type="password" id="supabaseAnonKey" placeholder="eyJhbGciOi..." autocomplete="off" />
+            </label>
+            <button class="secondary-button" id="saveCloudConfig" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14h18V7zm-2 2v4H7V5zm4 12H5V5h1v6h10V5h.2L19 7.8z"/></svg>
+              Save database
+            </button>
+          </div>
+          <div class="cloud-grid">
+            <label>
+              <span>Email</span>
+              <input type="email" id="syncEmail" placeholder="you@example.com" autocomplete="email" />
+            </label>
+            <label>
+              <span>Password</span>
+              <input type="password" id="syncPassword" placeholder="Minimum 6 characters" autocomplete="current-password" />
+            </label>
+            <div class="cloud-actions">
+              <button class="secondary-button" id="signUpCloud" type="button">Create account</button>
+              <button class="primary-button compact-button" id="signInCloud" type="button">Sign in</button>
+            </div>
+          </div>
+          <div class="cloud-actions">
+            <button class="secondary-button" id="syncCloudNow" type="button">Upload now</button>
+            <button class="secondary-button" id="pullCloudNow" type="button">Download cloud</button>
+            <button class="secondary-button" id="signOutCloud" type="button">Sign out</button>
+          </div>
+        </section>
+
         <section class="lower-grid">
           <article class="panel">
             <div class="panel-heading">

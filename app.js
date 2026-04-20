@@ -1,5 +1,6 @@
 const STORAGE_KEY = "poundwise-budget-v2";
 const LEGACY_STORAGE_KEY = "poundwise-budget-v1";
+const CLOUD_CONFIG_KEY = "poundwise-cloud-config-v1";
 
 const BUCKETS = [
   { name: "Needs", color: "#176b4d", short: "Protect today" },
@@ -30,8 +31,11 @@ const DEFAULT_TARGETS = {
 };
 
 const state = loadState();
+const cloud = loadCloudConfig();
 let selectedMonth = monthKey(new Date());
 let settingsAutosaveTimer;
+let cloudSyncTimer;
+let isApplyingCloudState = false;
 
 const els = {
   monthPicker: document.querySelector("#monthPicker"),
@@ -80,6 +84,17 @@ const els = {
   categoryFilter: document.querySelector("#categoryFilter"),
   exportCsv: document.querySelector("#exportCsv"),
   resetDemo: document.querySelector("#resetDemo"),
+  cloudStatus: document.querySelector("#cloudStatus"),
+  supabaseUrl: document.querySelector("#supabaseUrl"),
+  supabaseAnonKey: document.querySelector("#supabaseAnonKey"),
+  syncEmail: document.querySelector("#syncEmail"),
+  syncPassword: document.querySelector("#syncPassword"),
+  saveCloudConfig: document.querySelector("#saveCloudConfig"),
+  signUpCloud: document.querySelector("#signUpCloud"),
+  signInCloud: document.querySelector("#signInCloud"),
+  syncCloudNow: document.querySelector("#syncCloudNow"),
+  pullCloudNow: document.querySelector("#pullCloudNow"),
+  signOutCloud: document.querySelector("#signOutCloud"),
   emptyTemplate: document.querySelector("#emptyTemplate"),
 };
 
@@ -128,12 +143,19 @@ function init() {
   els.categoryFilter.addEventListener("change", renderTransactions);
   els.exportCsv.addEventListener("click", exportCsv);
   els.resetDemo.addEventListener("click", seedDemoData);
+  els.saveCloudConfig.addEventListener("click", saveCloudConfig);
+  els.signUpCloud.addEventListener("click", signUpCloud);
+  els.signInCloud.addEventListener("click", signInCloud);
+  els.syncCloudNow.addEventListener("click", () => pushToCloud(true));
+  els.pullCloudNow.addEventListener("click", () => pullFromCloud(true));
+  els.signOutCloud.addEventListener("click", signOutCloud);
   window.addEventListener("beforeunload", () => savePlanSettings(false));
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") savePlanSettings(false);
   });
 
   updateStorageStatus("Saving locally on this device");
+  renderCloudSettings();
   render();
 }
 
@@ -153,6 +175,15 @@ function loadState() {
   loaded.monthly = loaded.monthly && typeof loaded.monthly === "object" ? loaded.monthly : {};
   loaded.billPayments = loaded.billPayments && typeof loaded.billPayments === "object" ? loaded.billPayments : {};
   return loaded;
+}
+
+function loadCloudConfig() {
+  const fallback = { url: "", anonKey: "", session: null, lastSyncedAt: "" };
+  try {
+    return { ...fallback, ...JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY) || "{}") };
+  } catch {
+    return fallback;
+  }
 }
 
 function cloneDefaultCategories() {
@@ -188,11 +219,259 @@ function persist() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     updateStorageStatus("Saved locally on this device");
+    scheduleCloudSync();
     return true;
   } catch {
     updateStorageStatus("Storage is blocked. Export CSV after changes.", true);
     return false;
   }
+}
+
+function saveCloudConfig() {
+  cloud.url = els.supabaseUrl.value.trim().replace(/\/+$/, "");
+  cloud.anonKey = els.supabaseAnonKey.value.trim();
+  saveCloudConfigToStorage();
+  renderCloudSettings();
+}
+
+function saveCloudConfigToStorage() {
+  localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloud));
+}
+
+function renderCloudSettings() {
+  els.supabaseUrl.value = cloud.url || "";
+  els.supabaseAnonKey.value = cloud.anonKey || "";
+  updateCloudStatus(cloud.session ? `Cloud connected: ${cloud.session.user.email}` : "Not connected");
+  const connected = Boolean(cloud.session?.access_token);
+  els.syncCloudNow.disabled = !connected;
+  els.pullCloudNow.disabled = !connected;
+  els.signOutCloud.disabled = !connected;
+}
+
+function hasCloudConfig() {
+  return Boolean(cloud.url && cloud.anonKey);
+}
+
+function updateCloudStatus(message, isError = false) {
+  if (!els.cloudStatus) return;
+  els.cloudStatus.textContent = message;
+  els.cloudStatus.classList.toggle("warning-pill", isError);
+}
+
+async function signUpCloud() {
+  saveCloudConfig();
+  if (!hasCloudConfig()) {
+    updateCloudStatus("Add Supabase URL and anon key", true);
+    return;
+  }
+  const email = els.syncEmail.value.trim();
+  const password = els.syncPassword.value;
+  if (!email || !password) {
+    updateCloudStatus("Enter email and password", true);
+    return;
+  }
+
+  try {
+    updateCloudStatus("Creating account...");
+    const result = await cloudAuthRequest("/auth/v1/signup", { email, password });
+    if (result.session) {
+      cloud.session = normaliseSession(result);
+      saveCloudConfigToStorage();
+      await pushToCloud(false);
+      updateCloudStatus(`Cloud connected: ${cloud.session.user.email}`);
+    } else {
+      updateCloudStatus("Check your email, then sign in");
+    }
+    renderCloudSettings();
+  } catch (error) {
+    updateCloudStatus(error.message, true);
+  }
+}
+
+async function signInCloud() {
+  saveCloudConfig();
+  if (!hasCloudConfig()) {
+    updateCloudStatus("Add Supabase URL and anon key", true);
+    return;
+  }
+  const email = els.syncEmail.value.trim();
+  const password = els.syncPassword.value;
+  if (!email || !password) {
+    updateCloudStatus("Enter email and password", true);
+    return;
+  }
+
+  try {
+    updateCloudStatus("Signing in...");
+    const result = await cloudAuthRequest("/auth/v1/token?grant_type=password", { email, password });
+    cloud.session = normaliseSession(result);
+    saveCloudConfigToStorage();
+    renderCloudSettings();
+    await reconcileCloudAfterSignIn();
+  } catch (error) {
+    updateCloudStatus(error.message, true);
+  }
+}
+
+function signOutCloud() {
+  cloud.session = null;
+  saveCloudConfigToStorage();
+  renderCloudSettings();
+}
+
+async function reconcileCloudAfterSignIn() {
+  const cloudRow = await fetchCloudRow();
+  if (!cloudRow?.data) {
+    await pushToCloud(false);
+    updateCloudStatus("Cloud connected and uploaded");
+    return;
+  }
+
+  const replaceLocal = confirm("Cloud data already exists. Download it to this device? Choose Cancel to keep this device and upload it instead.");
+  if (replaceLocal) {
+    applyCloudState(cloudRow.data);
+    updateCloudStatus("Downloaded cloud data");
+  } else {
+    await pushToCloud(false);
+    updateCloudStatus("Uploaded this device to cloud");
+  }
+}
+
+function scheduleCloudSync() {
+  if (isApplyingCloudState || !cloud.session?.access_token || !hasCloudConfig()) return;
+  clearTimeout(cloudSyncTimer);
+  updateCloudStatus("Cloud sync pending...");
+  cloudSyncTimer = setTimeout(() => {
+    pushToCloud(false).catch((error) => updateCloudStatus(error.message, true));
+  }, 900);
+}
+
+async function pushToCloud(showSuccess) {
+  if (!cloud.session?.access_token || !hasCloudConfig()) {
+    updateCloudStatus("Sign in to sync", true);
+    return;
+  }
+
+  await ensureCloudSession();
+  updateCloudStatus("Uploading...");
+  const now = new Date().toISOString();
+  const response = await cloudDataRequest("/rest/v1/budget_states?on_conflict=user_id", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify({
+      user_id: cloud.session.user.id,
+      data: exportStateSnapshot(),
+      updated_at: now,
+    }),
+  });
+  if (!response.ok) throw new Error(await response.text() || "Cloud upload failed");
+  cloud.lastSyncedAt = now;
+  saveCloudConfigToStorage();
+  if (showSuccess) updateCloudStatus("Uploaded to cloud");
+  else updateCloudStatus("Cloud synced");
+}
+
+async function pullFromCloud(showSuccess) {
+  if (!cloud.session?.access_token || !hasCloudConfig()) {
+    updateCloudStatus("Sign in to sync", true);
+    return;
+  }
+  if (showSuccess && !confirm("Download cloud data to this device? This replaces the current local budget data.")) {
+    return;
+  }
+  await ensureCloudSession();
+  updateCloudStatus("Downloading...");
+  const row = await fetchCloudRow();
+  if (!row?.data) {
+    updateCloudStatus("No cloud data yet", true);
+    return;
+  }
+  applyCloudState(row.data);
+  if (showSuccess) updateCloudStatus("Downloaded cloud data");
+}
+
+async function fetchCloudRow() {
+  await ensureCloudSession();
+  const userId = encodeURIComponent(cloud.session.user.id);
+  const response = await cloudDataRequest(`/rest/v1/budget_states?select=data,updated_at&user_id=eq.${userId}`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(await response.text() || "Cloud download failed");
+  const rows = await response.json();
+  return rows[0] || null;
+}
+
+async function ensureCloudSession() {
+  if (!cloud.session?.refresh_token || !hasCloudConfig()) return;
+  const expiresAt = Number(cloud.session.expires_at || 0);
+  const shouldRefresh = expiresAt && Date.now() / 1000 > expiresAt - 60;
+  if (!shouldRefresh) return;
+
+  const result = await cloudAuthRequest("/auth/v1/token?grant_type=refresh_token", {
+    refresh_token: cloud.session.refresh_token,
+  });
+  cloud.session = normaliseSession(result);
+  saveCloudConfigToStorage();
+}
+
+async function cloudAuthRequest(path, body) {
+  const response = await fetch(`${cloud.url}${path}`, {
+    method: "POST",
+    headers: {
+      apikey: cloud.anonKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error_description || result.msg || result.message || "Supabase request failed");
+  return result;
+}
+
+async function cloudDataRequest(path, options) {
+  return fetch(`${cloud.url}${path}`, {
+    ...options,
+    headers: {
+      apikey: cloud.anonKey,
+      Authorization: `Bearer ${cloud.session.access_token}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+}
+
+function normaliseSession(result) {
+  return {
+    access_token: result.access_token || result.session?.access_token,
+    refresh_token: result.refresh_token || result.session?.refresh_token,
+    expires_at: result.expires_at || result.session?.expires_at,
+    user: result.user || result.session?.user,
+  };
+}
+
+function exportStateSnapshot() {
+  return {
+    expenses: state.expenses,
+    bills: state.bills,
+    monthly: state.monthly,
+    categories: state.categories,
+    billPayments: state.billPayments,
+  };
+}
+
+function applyCloudState(snapshot) {
+  isApplyingCloudState = true;
+  state.expenses = Array.isArray(snapshot.expenses) ? snapshot.expenses : [];
+  state.bills = Array.isArray(snapshot.bills) ? snapshot.bills : [];
+  state.monthly = snapshot.monthly && typeof snapshot.monthly === "object" ? snapshot.monthly : {};
+  state.categories = normaliseCategories(snapshot.categories);
+  state.billPayments = snapshot.billPayments && typeof snapshot.billPayments === "object" ? snapshot.billPayments : {};
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  isApplyingCloudState = false;
+  populateCategories();
+  setDefaultCategoryValues();
+  render();
 }
 
 function populateCategories() {

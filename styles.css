@@ -1044,6 +1044,29 @@ textarea:focus {
   padding: 4px;
 }
 
+.cloud-panel {
+  margin-bottom: 16px;
+}
+
+.cloud-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 12px;
+}
+
+.cloud-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.compact-button {
+  width: auto;
+}
+
 @media (max-width: 1260px) {
   .summary-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1074,6 +1097,7 @@ textarea:focus {
   .framework-strip,
   .settings-grid,
   .target-grid,
+  .cloud-grid,
   .goal-grid,
   .framework-row,
   .category-manage-row,
