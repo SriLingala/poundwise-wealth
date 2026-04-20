@@ -4,26 +4,44 @@ const CLOUD_CONFIG_KEY = "poundwise-cloud-config-v1";
 const ACTIVE_TAB_KEY = "poundwise-active-tab-v1";
 
 const BUCKETS = [
-  { name: "Needs", color: "#176b4d", short: "Protect today" },
-  { name: "Wants", color: "#b87612", short: "Spend intentionally" },
-  { name: "Future You", color: "#3157a4", short: "Build wealth" },
+  { name: "Needs", color: "#13a477", short: "Protect today" },
+  { name: "Wants", color: "#ff9f1c", short: "Spend intentionally" },
+  { name: "Future You", color: "#6b258d", short: "Build wealth" },
 ];
 
 const DEFAULT_CATEGORIES = [
-  { name: "Rent/Mortgage", bucket: "Needs", color: "#3157a4", budget: 950 },
-  { name: "Council tax", bucket: "Needs", color: "#176b4d", budget: 170 },
-  { name: "Utilities", bucket: "Needs", color: "#0f766e", budget: 220 },
-  { name: "Groceries", bucket: "Needs", color: "#b87612", budget: 350 },
-  { name: "Transport", bucket: "Needs", color: "#6d5bd0", budget: 160 },
-  { name: "Eating out", bucket: "Wants", color: "#d45b38", budget: 120 },
-  { name: "Shopping", bucket: "Wants", color: "#b42335", budget: 100 },
-  { name: "Entertainment", bucket: "Wants", color: "#8a5a14", budget: 90 },
-  { name: "Subscriptions", bucket: "Wants", color: "#5a7086", budget: 50 },
-  { name: "Emergency fund", bucket: "Future You", color: "#14866d", budget: 150 },
-  { name: "Investments", bucket: "Future You", color: "#2f855a", budget: 300 },
-  { name: "Debt overpayments", bucket: "Future You", color: "#4f46e5", budget: 100 },
-  { name: "Other", bucket: "Wants", color: "#6b7280", budget: 100 },
+  { name: "Rent/Mortgage", bucket: "Needs", color: "#6f4bdd", budget: 950 },
+  { name: "Council tax", bucket: "Needs", color: "#13a477", budget: 170 },
+  { name: "Utilities", bucket: "Needs", color: "#00a6a6", budget: 220 },
+  { name: "Groceries", bucket: "Needs", color: "#ffd166", budget: 350 },
+  { name: "Transport", bucket: "Needs", color: "#36c2ff", budget: 160 },
+  { name: "Eating out", bucket: "Wants", color: "#ff9f1c", budget: 120 },
+  { name: "Shopping", bucket: "Wants", color: "#ff4fa3", budget: 100 },
+  { name: "Entertainment", bucket: "Wants", color: "#df2f70", budget: 90 },
+  { name: "Subscriptions", bucket: "Wants", color: "#8f66ff", budget: 50 },
+  { name: "Emergency fund", bucket: "Future You", color: "#16c79a", budget: 150 },
+  { name: "Investments", bucket: "Future You", color: "#6b258d", budget: 300 },
+  { name: "Debt overpayments", bucket: "Future You", color: "#3d115c", budget: 100 },
+  { name: "Other", bucket: "Wants", color: "#7d6a88", budget: 100 },
 ];
+
+const LEGACY_CATEGORY_COLORS = {
+  "Rent/Mortgage": "#3157a4",
+  "Council tax": "#176b4d",
+  Utilities: "#0f766e",
+  Groceries: "#b87612",
+  Transport: "#6d5bd0",
+  "Eating out": "#d45b38",
+  Shopping: "#b42335",
+  Entertainment: "#8a5a14",
+  Subscriptions: "#5a7086",
+  "Emergency fund": "#14866d",
+  Investments: "#2f855a",
+  "Debt overpayments": "#4f46e5",
+  Other: "#6b7280",
+};
+
+const DEFAULT_CATEGORY_COLORS = Object.fromEntries(DEFAULT_CATEGORIES.map((category) => [category.name, category.color]));
 
 const DEFAULT_TARGETS = {
   Needs: 50,
@@ -210,16 +228,24 @@ function normaliseCategories(categories) {
       return {
         name,
         bucket,
-        color: /^#[0-9a-f]{6}$/i.test(category.color || "") ? category.color : fallback.color,
+        color: refreshLegacyCategoryColor(name, /^#[0-9a-f]{6}$/i.test(category.color || "") ? category.color : fallback.color),
         budget: normaliseMoney(category.budget ?? fallback.budget),
       };
     })
     .filter(Boolean);
 
   if (!normalised.some((category) => category.name === "Other")) {
-    normalised.push({ name: "Other", bucket: "Wants", color: "#6b7280", budget: 100 });
+    normalised.push({ name: "Other", bucket: "Wants", color: "#7d6a88", budget: 100 });
   }
   return normalised;
+}
+
+function refreshLegacyCategoryColor(name, color) {
+  const legacyColor = LEGACY_CATEGORY_COLORS[name];
+  if (legacyColor && legacyColor.toLowerCase() === String(color).toLowerCase()) {
+    return DEFAULT_CATEGORY_COLORS[name] || color;
+  }
+  return color;
 }
 
 function persist() {
@@ -947,7 +973,7 @@ function addCategory(event) {
     name,
     bucket: String(data.get("bucket")),
     budget: normaliseMoney(data.get("budget")),
-    color: String(data.get("color") || "#176b4d"),
+    color: String(data.get("color") || "#6b258d"),
   };
 
   state.categories.push(category);
@@ -957,7 +983,7 @@ function addCategory(event) {
   });
 
   form.reset();
-  form.elements.color.value = "#176b4d";
+  form.elements.color.value = "#6b258d";
   persist();
   render();
 }
@@ -1103,7 +1129,7 @@ function categoryBudgets() {
 }
 
 function getCategory(name) {
-  return state.categories.find((category) => category.name === name) || { name, bucket: "Wants", color: "#6b7280", budget: 0 };
+  return state.categories.find((category) => category.name === name) || { name, bucket: "Wants", color: "#7d6a88", budget: 0 };
 }
 
 function drawPie(node, legendNode, totals) {
