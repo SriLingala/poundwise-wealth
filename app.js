@@ -45,7 +45,6 @@ const els = {
   quickAddLink: document.querySelector(".quick-add-link"),
   previousMonth: document.querySelector("#previousMonth"),
   nextMonth: document.querySelector("#nextMonth"),
-  storageStatus: document.querySelector("#storageStatus"),
   incomeQuickInput: document.querySelector("#incomeQuickInput"),
   spentMetric: document.querySelector("#spentMetric"),
   remainingMetric: document.querySelector("#remainingMetric"),
@@ -162,7 +161,6 @@ function init() {
     if (document.visibilityState === "hidden") savePlanSettings(false);
   });
 
-  updateStorageStatus("Saving locally on this device");
   renderCloudSettings();
   activateTab(localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard");
   render();
@@ -227,11 +225,10 @@ function normaliseCategories(categories) {
 function persist() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    updateStorageStatus("Saved locally on this device");
     scheduleCloudSync();
     return true;
   } catch {
-    updateStorageStatus("Storage is blocked. Export CSV after changes.", true);
+    updateCloudStatus("Storage is blocked. Export CSV after changes.", true);
     return false;
   }
 }
@@ -1018,16 +1015,9 @@ function saveIncome(value, renderAfter = true) {
 
 function scheduleSettingsAutosave() {
   clearTimeout(settingsAutosaveTimer);
-  updateStorageStatus("Saving...");
   settingsAutosaveTimer = setTimeout(() => {
     savePlanSettings(false);
   }, 250);
-}
-
-function updateStorageStatus(message, isError = false) {
-  if (!els.storageStatus) return;
-  els.storageStatus.textContent = message;
-  els.storageStatus.classList.toggle("storage-error", isError);
 }
 
 function ensureMonthlySettings(key) {
