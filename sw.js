@@ -1,4 +1,4 @@
-const CACHE_NAME = "poundwise-wealth-v8";
+const CACHE_NAME = "poundwise-wealth-v9";
 const APP_ASSETS = [
   "./",
   "./index.html",

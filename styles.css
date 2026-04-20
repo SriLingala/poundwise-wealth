@@ -116,10 +116,6 @@ body.auth-required .app-shell,
   gap: 10px;
 }
 
-.auth-offline-button {
-  width: 100%;
-}
-
 .auth-status {
   min-height: 28px;
   margin: 0;

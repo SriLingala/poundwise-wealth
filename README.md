@@ -18,7 +18,7 @@ Poundwise Wealth is a private, installable budgeting system for tracking every p
 
 ## Use
 
-Open `index.html` in a browser. Data is stored locally first and can sync through Firebase Firestore when a user signs in. Signed-in users also get separate local caches on shared devices.
+Open `index.html` in a browser. Users sign in before using the app. Data is stored locally first, syncs to Firebase Firestore after changes, and checks for updates from other browsers/devices automatically.
 
 ## Firebase Sync
 
@@ -27,7 +27,7 @@ The app is configured for Firebase project `poundwise-493918`.
 1. Enable Firebase Authentication with Email/Password sign-in.
 2. Create a Firestore database.
 3. Apply the rules in `firestore.rules`.
-4. In the app, open **Budgets & Recurring**, create an account or sign in.
-5. Use **Upload now** to push this device or **Download cloud** to pull existing cloud data.
+4. In the app, create an account or sign in.
+5. Keep the same account signed in on each browser/device to sync budget data automatically.
 
 Each Firebase user stores budget data under their own user ID, so multiple people can use the same hosted app without seeing each other's data.

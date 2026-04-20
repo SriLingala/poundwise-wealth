@@ -2,7 +2,6 @@ const STORAGE_KEY = "poundwise-budget-v2";
 const LEGACY_STORAGE_KEY = "poundwise-budget-v1";
 const CLOUD_CONFIG_KEY = "poundwise-firebase-cloud-v1";
 const ACTIVE_TAB_KEY = "poundwise-active-tab-v1";
-const AUTH_SKIP_KEY = "poundwise-auth-skip-v1";
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyD_nIUpj0smU5K664aO5ob3Cn0kXLKUcZc",
@@ -65,8 +64,9 @@ const state = loadState();
 let selectedMonth = monthKey(new Date());
 let settingsAutosaveTimer;
 let cloudSyncTimer;
+let cloudPollTimer;
+let isCheckingCloud = false;
 let isApplyingCloudState = false;
-let authDismissed = localStorage.getItem(AUTH_SKIP_KEY) === "true";
 
 const els = {
   authScreen: document.querySelector("#authScreen"),
@@ -75,7 +75,6 @@ const els = {
   authPassword: document.querySelector("#authPassword"),
   authCreate: document.querySelector("#authCreate"),
   authSignIn: document.querySelector("#authSignIn"),
-  authContinueOffline: document.querySelector("#authContinueOffline"),
   authStatus: document.querySelector("#authStatus"),
   monthPicker: document.querySelector("#monthPicker"),
   tabButtons: document.querySelectorAll("[data-tab]"),
@@ -189,7 +188,6 @@ function init() {
     signInCloud("auth");
   });
   els.authCreate.addEventListener("click", () => signUpCloud("auth"));
-  els.authContinueOffline.addEventListener("click", continueOffline);
   els.quickAddLink.addEventListener("click", () => activateTab("dashboard"));
   els.signUpCloud.addEventListener("click", () => signUpCloud("panel"));
   els.signInCloud.addEventListener("click", () => signInCloud("panel"));
@@ -199,7 +197,10 @@ function init() {
   window.addEventListener("beforeunload", () => savePlanSettings(false));
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") savePlanSettings(false);
+    else checkCloudUpdates(false).catch((error) => updateCloudStatus(error.message, true));
   });
+  window.addEventListener("focus", () => checkCloudUpdates(false).catch((error) => updateCloudStatus(error.message, true)));
+  window.addEventListener("online", () => checkCloudUpdates(false).catch((error) => updateCloudStatus(error.message, true)));
 
   renderCloudSettings();
   activateTab(localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard");
@@ -300,6 +301,8 @@ function renderCloudSettings() {
   els.syncCloudNow.disabled = !connected;
   els.pullCloudNow.disabled = !connected;
   els.signOutCloud.disabled = !connected;
+  if (connected) startCloudPolling();
+  else stopCloudPolling();
 }
 
 function hasCloudConfig() {
@@ -320,20 +323,13 @@ function updateAuthStatus(message, isError = false) {
 }
 
 function renderAuthScreen() {
-  const shouldShow = !cloud.session?.idToken && !authDismissed;
+  const shouldShow = !cloud.session?.idToken;
   els.authScreen.hidden = !shouldShow;
   document.body.classList.toggle("auth-required", shouldShow);
   if (cloud.session?.email) {
     els.authEmail.value = cloud.session.email;
     els.syncEmail.value = cloud.session.email;
   }
-}
-
-function continueOffline() {
-  authDismissed = true;
-  localStorage.setItem(AUTH_SKIP_KEY, "true");
-  updateAuthStatus("Using this device only");
-  renderAuthScreen();
 }
 
 function getCloudCredentials(source) {
@@ -365,8 +361,6 @@ async function signUpCloud(source = "panel") {
     cloud.session = normaliseSession(result);
     saveCloudConfigToStorage();
     await pushToCloud(false);
-    authDismissed = false;
-    localStorage.removeItem(AUTH_SKIP_KEY);
     updateCloudStatus(`Connected: ${cloud.session.email}`);
     renderCloudSettings();
     renderAuthScreen();
@@ -391,10 +385,8 @@ async function signInCloud(source = "panel") {
     const result = await cloudAuthRequest("signInWithPassword", { email, password, returnSecureToken: true });
     cloud.session = normaliseSession(result);
     saveCloudConfigToStorage();
-    authDismissed = false;
-    localStorage.removeItem(AUTH_SKIP_KEY);
-    renderCloudSettings();
     await reconcileCloudAfterSignIn();
+    renderCloudSettings();
     renderAuthScreen();
   } catch (error) {
     updateCloudStatus(error.message, true);
@@ -408,9 +400,9 @@ function signOutCloud() {
     updateCloudStatus("Storage is blocked. Export CSV after changes.", true);
   }
   clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = null;
+  stopCloudPolling();
   cloud.session = null;
-  authDismissed = false;
-  localStorage.removeItem(AUTH_SKIP_KEY);
   els.authPassword.value = "";
   els.syncPassword.value = "";
   saveCloudConfigToStorage();
@@ -427,14 +419,10 @@ async function reconcileCloudAfterSignIn() {
     return;
   }
 
-  const replaceLocal = confirm("Cloud data already exists. Download it to this device? Choose Cancel to keep this device and upload it instead.");
-  if (replaceLocal) {
-    applyCloudState(cloudRow.data);
-    updateCloudStatus("Downloaded cloud data");
-  } else {
-    await pushToCloud(false);
-    updateCloudStatus("Uploaded this device to cloud");
-  }
+  applyCloudState(cloudRow.data);
+  cloud.lastSyncedAt = cloudRow.updatedAt || new Date().toISOString();
+  saveCloudConfigToStorage();
+  updateCloudStatus("Cloud connected and synced");
 }
 
 function scheduleCloudSync() {
@@ -442,8 +430,44 @@ function scheduleCloudSync() {
   clearTimeout(cloudSyncTimer);
   updateCloudStatus("Cloud sync pending...");
   cloudSyncTimer = setTimeout(() => {
+    cloudSyncTimer = null;
     pushToCloud(false).catch((error) => updateCloudStatus(error.message, true));
   }, 900);
+}
+
+function startCloudPolling() {
+  if (cloudPollTimer) return;
+  cloudPollTimer = setInterval(() => {
+    checkCloudUpdates(false).catch((error) => updateCloudStatus(error.message, true));
+  }, 10000);
+  checkCloudUpdates(false).catch((error) => updateCloudStatus(error.message, true));
+}
+
+function stopCloudPolling() {
+  clearInterval(cloudPollTimer);
+  cloudPollTimer = null;
+}
+
+async function checkCloudUpdates(showSuccess) {
+  if (isCheckingCloud || isApplyingCloudState || cloudSyncTimer || !cloud.session?.idToken || !hasCloudConfig()) return;
+  isCheckingCloud = true;
+  try {
+    const row = await fetchCloudRow();
+    if (!row?.data) {
+      await pushToCloud(false);
+      return;
+    }
+    const cloudTime = row.updatedAt ? Date.parse(row.updatedAt) : 0;
+    const localTime = cloud.lastSyncedAt ? Date.parse(cloud.lastSyncedAt) : 0;
+    if (cloudTime > localTime) {
+      applyCloudState(row.data);
+      cloud.lastSyncedAt = row.updatedAt;
+      saveCloudConfigToStorage();
+      updateCloudStatus(showSuccess ? "Downloaded latest cloud data" : "Cloud synced");
+    }
+  } finally {
+    isCheckingCloud = false;
+  }
 }
 
 async function pushToCloud(showSuccess) {
@@ -476,9 +500,6 @@ async function pullFromCloud(showSuccess) {
     updateCloudStatus("Sign in to sync", true);
     return;
   }
-  if (showSuccess && !confirm("Download cloud data to this device? This replaces the current local budget data.")) {
-    return;
-  }
   await ensureCloudSession();
   updateCloudStatus("Downloading...");
   const row = await fetchCloudRow();
@@ -487,6 +508,8 @@ async function pullFromCloud(showSuccess) {
     return;
   }
   applyCloudState(row.data);
+  cloud.lastSyncedAt = row.updatedAt || new Date().toISOString();
+  saveCloudConfigToStorage();
   if (showSuccess) updateCloudStatus("Downloaded cloud data");
 }
 
