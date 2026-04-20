@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Poundwise app icon">
+  <rect width="512" height="512" rx="108" fill="#176b4d"/>
+  <path d="M128 350h256v48H128z" fill="#eaf4ef"/>
+  <path d="M185 348V164c0-45 34-78 86-78 39 0 70 16 91 45l-39 31c-12-18-28-27-49-27-25 0-41 14-41 36v47h91v45h-91v85z" fill="#ffffff"/>
+  <path d="M156 252h161v42H156z" fill="#ffffff"/>
+  <path d="M348 173c27 24 43 59 43 98 0 73-59 132-132 132-39 0-74-17-98-43l31-31c16 18 40 30 67 30 49 0 88-39 88-88 0-27-12-51-30-67z" fill="#9dd6bf"/>
+</svg>

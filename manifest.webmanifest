@@ -1,0 +1,35 @@
+{
+  "name": "Poundwise Wealth",
+  "short_name": "Poundwise",
+  "description": "A private budgeting system for tracking every pound, recurring bills, savings, investments, and Future You goals.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef4f1",
+  "theme_color": "#176b4d",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "./icons/poundwise-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Add transaction",
+      "short_name": "Add",
+      "description": "Open Poundwise ready to add a transaction.",
+      "url": "./index.html#expenseForm",
+      "icons": [
+        {
+          "src": "./icons/poundwise-icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

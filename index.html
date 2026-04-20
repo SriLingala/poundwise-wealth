@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#176b4d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Poundwise" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>Poundwise Wealth System</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/poundwise-icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/poundwise-icon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Budgeting system</p>
+          <h1>Poundwise Wealth</h1>
+          <p class="hero-copy">Track every pound, protect today, enjoy life, and keep paying Future You first.</p>
+        </div>
+        <div class="month-control">
+          <button class="icon-button" id="previousMonth" title="Previous month" aria-label="Previous month">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.8 5.2 9 12l6.8 6.8-1.6 1.6L5.8 12l8.4-8.4z"/></svg>
+          </button>
+          <label>
+            <span>Month</span>
+            <input type="month" id="monthPicker" />
+          </label>
+          <button class="icon-button" id="nextMonth" title="Next month" aria-label="Next month">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8.2 18.8 6.8-6.8-6.8-6.8 1.6-1.6 8.4 8.4-8.4 8.4z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section class="framework-strip" aria-label="Needs, Wants and Future You framework">
+          <article class="framework-card needs-card">
+            <span>Needs</span>
+            <strong>Keep life stable</strong>
+            <p>Housing, bills, food, transport, insurance, and the things that must be paid.</p>
+          </article>
+          <article class="framework-card wants-card">
+            <span>Wants</span>
+            <strong>Spend with intention</strong>
+            <p>Restaurants, shopping, holidays, subscriptions, fun, and upgrades you choose.</p>
+          </article>
+          <article class="framework-card future-card">
+            <span>Future You</span>
+            <strong>Build wealth</strong>
+            <p>Savings, investments, debt freedom, and assets that move you toward six figures.</p>
+          </article>
+        </section>
+
+        <section class="summary-grid" aria-label="Monthly summary">
+          <article class="metric-card">
+            <div class="metric-icon income">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v10H4zm2 2v6h12V9zm3 1h6v2H9z"/></svg>
+            </div>
+            <p>Monthly income</p>
+            <strong id="incomeMetric">£0.00</strong>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon spend">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v3h3v13H4V7h3zm2 3h6V6H9zm-3 2v9h12V9zm9 3h2v3h-2z"/></svg>
+            </div>
+            <p>Total tracked</p>
+            <strong id="spentMetric">£0.00</strong>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon remaining">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9h-2a7 7 0 1 1-7-7zm1 4h-2v6l5 3 .9-1.7-3.9-2.3z"/></svg>
+            </div>
+            <p>Left this month</p>
+            <strong id="remainingMetric">£0.00</strong>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon future">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 6v6c0 5 3.4 9.7 8 10 4.6-.3 8-5 8-10V6zm0 3.2 6 2.7V12c0 3.8-2.4 7.1-6 7.9-3.6-.8-6-4.1-6-7.9V7.9zm-1 3.8h2v4h3l-4 4-4-4h3z"/></svg>
+            </div>
+            <p>Future You rate</p>
+            <strong id="futureRateMetric">0%</strong>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon daily">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3h2v3h3v2h-3v3h-2V8H8V6h3zm-6 9h14v9H5zm2 2v5h10v-5z"/></svg>
+            </div>
+            <p>Saved/invested</p>
+            <strong id="futureMetric">£0.00</strong>
+          </article>
+          <article class="metric-card">
+            <div class="metric-icon wealth">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 2 22h20zm0 5.2L18.8 20H5.2zM11 12h2v5h-2z"/></svg>
+            </div>
+            <p>Six-figure progress</p>
+            <strong id="wealthGoalMetric">0%</strong>
+          </article>
+        </section>
+
+        <section class="workspace">
+          <div class="panel main-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Dashboard</p>
+                <h2 id="dashboardTitle">Monthly overview</h2>
+              </div>
+              <div class="actions">
+                <button class="secondary-button" id="exportCsv">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5zm7-16v9l3.5-3.5 1.4 1.4L12 15.8l-4.9-4.9 1.4-1.4L11 13V4z"/></svg>
+                  CSV
+                </button>
+                <button class="secondary-button" id="resetDemo">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V2L7 7l5 5V9a5 5 0 1 1-4.6 7H5.3A7 7 0 1 0 12 5z"/></svg>
+                  Demo
+                </button>
+              </div>
+            </div>
+
+            <article class="wide-card framework-dashboard">
+              <div class="panel-heading compact">
+                <div>
+                  <h3>Needs, Wants + Future You</h3>
+                  <p class="muted">Actual spending versus your target plan for the selected month.</p>
+                </div>
+                <span class="pill" id="targetStatus">Set your targets</span>
+              </div>
+              <div class="framework-rows" id="frameworkRows"></div>
+            </article>
+
+            <div class="charts-grid">
+              <article class="chart-card">
+                <div class="chart-copy">
+                  <h3>Spend by category</h3>
+                  <p id="categoryChartHint">Add spendings to see the split.</p>
+                </div>
+                <div class="pie-shell">
+                  <div class="pie-chart" id="categoryPie" role="img" aria-label="Spending by category pie chart"></div>
+                  <div class="pie-center"><span id="categoryPieTotal">£0</span><small>Total</small></div>
+                </div>
+                <div class="legend" id="categoryLegend"></div>
+              </article>
+
+              <article class="chart-card">
+                <div class="chart-copy">
+                  <h3>Budget allocation</h3>
+                  <p id="budgetChartHint">Set budgets to compare your plan.</p>
+                </div>
+                <div class="pie-shell">
+                  <div class="pie-chart" id="budgetPie" role="img" aria-label="Budget allocation pie chart"></div>
+                  <div class="pie-center"><span id="budgetPieTotal">£0</span><small>Planned</small></div>
+                </div>
+                <div class="legend" id="budgetLegend"></div>
+              </article>
+            </div>
+
+            <article class="wide-card">
+              <div class="panel-heading compact">
+                <div>
+                  <h3>Daily rhythm</h3>
+                  <p class="muted">Each bar is one day of the selected month, including recurring bills on their due day.</p>
+                </div>
+                <span class="pill" id="averageSpend">Avg £0/day</span>
+              </div>
+              <div class="bar-chart" id="dailyBars" aria-label="Daily spending bar chart"></div>
+            </article>
+
+            <article class="wide-card">
+              <div class="panel-heading compact">
+                <div>
+                  <h3>Goals</h3>
+                  <p class="muted">Track your targets, savings rate, and six-figure wealth path.</p>
+                </div>
+              </div>
+              <div class="goal-grid" id="goalCards"></div>
+            </article>
+
+            <article class="wide-card">
+              <div class="panel-heading compact">
+                <div>
+                  <h3>Insights</h3>
+                  <p class="muted">Signals that help you understand habits and adjust early.</p>
+                </div>
+              </div>
+              <div class="insights" id="insights"></div>
+            </article>
+          </div>
+
+          <aside class="panel side-panel">
+            <form id="expenseForm" class="form-stack">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="eyebrow">Daily tracker</p>
+                  <h2>Add spending or investing</h2>
+                </div>
+              </div>
+              <label>
+                <span>Date</span>
+                <input type="date" name="date" required />
+              </label>
+              <label>
+                <span>What was it?</span>
+                <input type="text" name="description" placeholder="Groceries, ISA transfer, lunch..." required />
+              </label>
+              <div class="field-row">
+                <label>
+                  <span>Amount</span>
+                  <input type="number" name="amount" min="0.01" step="0.01" placeholder="0.00" required />
+                </label>
+                <label>
+                  <span>Category</span>
+                  <select name="category" id="expenseCategory"></select>
+                </label>
+              </div>
+              <div class="field-row">
+                <label>
+                  <span>Method</span>
+                  <select name="method">
+                    <option>Debit card</option>
+                    <option>Credit card</option>
+                    <option>Cash</option>
+                    <option>Bank transfer</option>
+                    <option>Direct debit</option>
+                    <option>Investment account</option>
+                  </select>
+                </label>
+                <label class="bucket-preview">
+                  <span>Framework</span>
+                  <strong id="expenseBucketPreview">Needs</strong>
+                </label>
+              </div>
+              <label>
+                <span>Note</span>
+                <textarea name="note" rows="2" placeholder="Optional"></textarea>
+              </label>
+              <button class="primary-button" type="submit">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+                Add entry
+              </button>
+            </form>
+          </aside>
+        </section>
+
+        <section class="lower-grid">
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Plan</p>
+                <h2>Monthly targets and category budget</h2>
+              </div>
+              <button class="secondary-button" id="saveBudget">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3H5a2 2 0 0 0-2 2v14h18V7zm-2 2v4H7V5zm4 12H5V5h1v6h10V5h.2L19 7.8z"/></svg>
+                Save
+              </button>
+            </div>
+            <div class="budget-form">
+              <div class="settings-grid">
+                <label>
+                  <span>Expected income</span>
+                  <input type="number" id="monthlyIncome" min="0" step="0.01" placeholder="0.00" />
+                </label>
+                <label>
+                  <span>Current savings/investments</span>
+                  <input type="number" id="currentWealth" min="0" step="0.01" placeholder="0.00" />
+                </label>
+                <label>
+                  <span>Future wealth goal</span>
+                  <input type="number" id="wealthGoal" min="0" step="0.01" placeholder="100000.00" />
+                </label>
+              </div>
+              <div class="target-grid">
+                <label>
+                  <span>Needs target %</span>
+                  <input type="number" id="targetNeeds" min="0" max="100" step="1" />
+                </label>
+                <label>
+                  <span>Wants target %</span>
+                  <input type="number" id="targetWants" min="0" max="100" step="1" />
+                </label>
+                <label>
+                  <span>Future You target %</span>
+                  <input type="number" id="targetFuture" min="0" max="100" step="1" />
+                </label>
+              </div>
+              <div class="category-table" id="categoryTable"></div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Adapt</p>
+                <h2>Custom categories</h2>
+              </div>
+            </div>
+            <form id="categoryForm" class="category-form">
+              <label>
+                <span>Category name</span>
+                <input type="text" name="name" placeholder="Holiday fund" required />
+              </label>
+              <label>
+                <span>Framework</span>
+                <select name="bucket">
+                  <option>Needs</option>
+                  <option>Wants</option>
+                  <option>Future You</option>
+                </select>
+              </label>
+              <label>
+                <span>Monthly budget</span>
+                <input type="number" name="budget" min="0" step="0.01" placeholder="0.00" required />
+              </label>
+              <label>
+                <span>Colour</span>
+                <input type="color" name="color" value="#176b4d" />
+              </label>
+              <button class="primary-button" type="submit">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+                Add category
+              </button>
+            </form>
+            <div class="categories-list" id="categoriesList"></div>
+          </article>
+        </section>
+
+        <section class="lower-grid">
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Recurring needs</p>
+                <h2>Mandatory monthly bills</h2>
+              </div>
+            </div>
+            <form id="billForm" class="bill-form">
+              <label>
+                <span>Name</span>
+                <input type="text" name="name" placeholder="Council tax" required />
+              </label>
+              <label>
+                <span>Category</span>
+                <select name="category" id="billCategory"></select>
+              </label>
+              <label>
+                <span>Monthly amount</span>
+                <input type="number" name="amount" min="0.01" step="0.01" placeholder="0.00" required />
+              </label>
+              <label>
+                <span>Due day</span>
+                <input type="number" name="dueDay" min="1" max="31" step="1" value="1" required />
+              </label>
+              <button class="primary-button" type="submit">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 3h-1V1h-2v2H8V1H6v2H5a2 2 0 0 0-2 2v16h18V5a2 2 0 0 0-2-2zM5 9h14v10H5z"/></svg>
+                Add recurring bill
+              </button>
+            </form>
+            <div class="bills-list" id="billsList"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Transactions</p>
+                <h2>Entries in selected month</h2>
+              </div>
+              <div class="filter-bar">
+                <label>
+                  <span>Search</span>
+                  <input type="search" id="searchInput" placeholder="Find an entry..." />
+                </label>
+                <label>
+                  <span>Category</span>
+                  <select id="categoryFilter">
+                    <option value="All">All</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div class="transactions" id="transactions"></div>
+          </article>
+        </section>
+      </main>
+      <a class="quick-add-link" href="#expenseForm" aria-label="Jump to add entry">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+        Add entry
+      </a>
+    </div>
+
+    <template id="emptyTemplate">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zm2 2v12h12V6zm2 3h8v2H8zm0 4h5v2H8z"/></svg>
+        <p>No records yet for this month.</p>
+      </div>
+    </template>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
