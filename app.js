@@ -1,7 +1,17 @@
 const STORAGE_KEY = "poundwise-budget-v2";
 const LEGACY_STORAGE_KEY = "poundwise-budget-v1";
-const CLOUD_CONFIG_KEY = "poundwise-cloud-config-v1";
+const CLOUD_CONFIG_KEY = "poundwise-firebase-cloud-v1";
 const ACTIVE_TAB_KEY = "poundwise-active-tab-v1";
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD_nIUpj0smU5K664aO5ob3Cn0kXLKUcZc",
+  authDomain: "poundwise-493918.firebaseapp.com",
+  projectId: "poundwise-493918",
+  storageBucket: "poundwise-493918.firebasestorage.app",
+  messagingSenderId: "789498055628",
+  appId: "1:789498055628:web:50373b504076f1262d6b69",
+  measurementId: "G-TY9M3EJTC8",
+};
 
 const BUCKETS = [
   { name: "Needs", color: "#13a477", short: "Protect today" },
@@ -49,8 +59,8 @@ const DEFAULT_TARGETS = {
   "Future You": 20,
 };
 
-const state = loadState();
 const cloud = loadCloudConfig();
+const state = loadState();
 let selectedMonth = monthKey(new Date());
 let settingsAutosaveTimer;
 let cloudSyncTimer;
@@ -106,11 +116,8 @@ const els = {
   exportCsv: document.querySelector("#exportCsv"),
   resetDemo: document.querySelector("#resetDemo"),
   cloudStatus: document.querySelector("#cloudStatus"),
-  supabaseUrl: document.querySelector("#supabaseUrl"),
-  supabaseAnonKey: document.querySelector("#supabaseAnonKey"),
   syncEmail: document.querySelector("#syncEmail"),
   syncPassword: document.querySelector("#syncPassword"),
-  saveCloudConfig: document.querySelector("#saveCloudConfig"),
   signUpCloud: document.querySelector("#signUpCloud"),
   signInCloud: document.querySelector("#signInCloud"),
   syncCloudNow: document.querySelector("#syncCloudNow"),
@@ -168,7 +175,6 @@ function init() {
     button.addEventListener("click", () => activateTab(button.dataset.tab));
   });
   els.quickAddLink.addEventListener("click", () => activateTab("dashboard"));
-  els.saveCloudConfig.addEventListener("click", saveCloudConfig);
   els.signUpCloud.addEventListener("click", signUpCloud);
   els.signInCloud.addEventListener("click", signInCloud);
   els.syncCloudNow.addEventListener("click", () => pushToCloud(true));
@@ -186,12 +192,7 @@ function init() {
 
 function loadState() {
   const fallback = { expenses: [], bills: [], monthly: {}, categories: cloneDefaultCategories(), billPayments: {} };
-  let parsed = {};
-  try {
-    parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY) || "{}");
-  } catch {
-    parsed = {};
-  }
+  const parsed = readStoredState(activeStorageKey()) || readStoredState(STORAGE_KEY) || readStoredState(LEGACY_STORAGE_KEY) || {};
 
   const loaded = { ...fallback, ...parsed };
   loaded.categories = normaliseCategories(loaded.categories);
@@ -202,8 +203,21 @@ function loadState() {
   return loaded;
 }
 
+function readStoredState(key) {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+}
+
+function activeStorageKey() {
+  return cloud.session?.localId ? `${STORAGE_KEY}-user-${cloud.session.localId}` : STORAGE_KEY;
+}
+
 function loadCloudConfig() {
-  const fallback = { url: "", anonKey: "", session: null, lastSyncedAt: "" };
+  const fallback = { session: null, lastSyncedAt: "" };
   try {
     return { ...fallback, ...JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY) || "{}") };
   } catch {
@@ -250,7 +264,7 @@ function refreshLegacyCategoryColor(name, color) {
 
 function persist() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(activeStorageKey(), JSON.stringify(state));
     scheduleCloudSync();
     return true;
   } catch {
@@ -259,29 +273,20 @@ function persist() {
   }
 }
 
-function saveCloudConfig() {
-  cloud.url = els.supabaseUrl.value.trim().replace(/\/+$/, "");
-  cloud.anonKey = els.supabaseAnonKey.value.trim();
-  saveCloudConfigToStorage();
-  renderCloudSettings();
-}
-
 function saveCloudConfigToStorage() {
   localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloud));
 }
 
 function renderCloudSettings() {
-  els.supabaseUrl.value = cloud.url || "";
-  els.supabaseAnonKey.value = cloud.anonKey || "";
-  updateCloudStatus(cloud.session ? `Cloud connected: ${cloud.session.user.email}` : "Not connected");
-  const connected = Boolean(cloud.session?.access_token);
+  updateCloudStatus(cloud.session ? `Connected: ${cloud.session.email}` : "Not connected");
+  const connected = Boolean(cloud.session?.idToken && cloud.session?.localId);
   els.syncCloudNow.disabled = !connected;
   els.pullCloudNow.disabled = !connected;
   els.signOutCloud.disabled = !connected;
 }
 
 function hasCloudConfig() {
-  return Boolean(cloud.url && cloud.anonKey);
+  return Boolean(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId);
 }
 
 function updateCloudStatus(message, isError = false) {
@@ -291,9 +296,8 @@ function updateCloudStatus(message, isError = false) {
 }
 
 async function signUpCloud() {
-  saveCloudConfig();
   if (!hasCloudConfig()) {
-    updateCloudStatus("Add Supabase URL and anon key", true);
+    updateCloudStatus("Firebase project config missing", true);
     return;
   }
   const email = els.syncEmail.value.trim();
@@ -305,15 +309,11 @@ async function signUpCloud() {
 
   try {
     updateCloudStatus("Creating account...");
-    const result = await cloudAuthRequest("/auth/v1/signup", { email, password });
-    if (result.session) {
-      cloud.session = normaliseSession(result);
-      saveCloudConfigToStorage();
-      await pushToCloud(false);
-      updateCloudStatus(`Cloud connected: ${cloud.session.user.email}`);
-    } else {
-      updateCloudStatus("Check your email, then sign in");
-    }
+    const result = await cloudAuthRequest("signUp", { email, password, returnSecureToken: true });
+    cloud.session = normaliseSession(result);
+    saveCloudConfigToStorage();
+    await pushToCloud(false);
+    updateCloudStatus(`Connected: ${cloud.session.email}`);
     renderCloudSettings();
   } catch (error) {
     updateCloudStatus(error.message, true);
@@ -321,9 +321,8 @@ async function signUpCloud() {
 }
 
 async function signInCloud() {
-  saveCloudConfig();
   if (!hasCloudConfig()) {
-    updateCloudStatus("Add Supabase URL and anon key", true);
+    updateCloudStatus("Firebase project config missing", true);
     return;
   }
   const email = els.syncEmail.value.trim();
@@ -335,7 +334,7 @@ async function signInCloud() {
 
   try {
     updateCloudStatus("Signing in...");
-    const result = await cloudAuthRequest("/auth/v1/token?grant_type=password", { email, password });
+    const result = await cloudAuthRequest("signInWithPassword", { email, password, returnSecureToken: true });
     cloud.session = normaliseSession(result);
     saveCloudConfigToStorage();
     renderCloudSettings();
@@ -346,8 +345,16 @@ async function signInCloud() {
 }
 
 function signOutCloud() {
+  try {
+    localStorage.setItem(activeStorageKey(), JSON.stringify(state));
+  } catch {
+    updateCloudStatus("Storage is blocked. Export CSV after changes.", true);
+  }
+  clearTimeout(cloudSyncTimer);
   cloud.session = null;
+  els.syncPassword.value = "";
   saveCloudConfigToStorage();
+  applyCloudState(loadState());
   renderCloudSettings();
 }
 
@@ -370,7 +377,7 @@ async function reconcileCloudAfterSignIn() {
 }
 
 function scheduleCloudSync() {
-  if (isApplyingCloudState || !cloud.session?.access_token || !hasCloudConfig()) return;
+  if (isApplyingCloudState || !cloud.session?.idToken || !hasCloudConfig()) return;
   clearTimeout(cloudSyncTimer);
   updateCloudStatus("Cloud sync pending...");
   cloudSyncTimer = setTimeout(() => {
@@ -379,7 +386,7 @@ function scheduleCloudSync() {
 }
 
 async function pushToCloud(showSuccess) {
-  if (!cloud.session?.access_token || !hasCloudConfig()) {
+  if (!cloud.session?.idToken || !hasCloudConfig()) {
     updateCloudStatus("Sign in to sync", true);
     return;
   }
@@ -387,13 +394,13 @@ async function pushToCloud(showSuccess) {
   await ensureCloudSession();
   updateCloudStatus("Uploading...");
   const now = new Date().toISOString();
-  const response = await cloudDataRequest("/rest/v1/budget_states?on_conflict=user_id", {
-    method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+  const response = await cloudDataRequest(firestoreBudgetDocumentUrl(), {
+    method: "PATCH",
     body: JSON.stringify({
-      user_id: cloud.session.user.id,
-      data: exportStateSnapshot(),
-      updated_at: now,
+      fields: {
+        data: toFirestoreValue(exportStateSnapshot()),
+        updatedAt: { timestampValue: now },
+      },
     }),
   });
   if (!response.ok) throw new Error(await response.text() || "Cloud upload failed");
@@ -404,7 +411,7 @@ async function pushToCloud(showSuccess) {
 }
 
 async function pullFromCloud(showSuccess) {
-  if (!cloud.session?.access_token || !hasCloudConfig()) {
+  if (!cloud.session?.idToken || !hasCloudConfig()) {
     updateCloudStatus("Sign in to sync", true);
     return;
   }
@@ -424,49 +431,56 @@ async function pullFromCloud(showSuccess) {
 
 async function fetchCloudRow() {
   await ensureCloudSession();
-  const userId = encodeURIComponent(cloud.session.user.id);
-  const response = await cloudDataRequest(`/rest/v1/budget_states?select=data,updated_at&user_id=eq.${userId}`, {
+  const response = await cloudDataRequest(firestoreBudgetDocumentUrl(), {
     method: "GET",
     headers: { Accept: "application/json" },
   });
+  if (response.status === 404) return null;
   if (!response.ok) throw new Error(await response.text() || "Cloud download failed");
-  const rows = await response.json();
-  return rows[0] || null;
+  const document = await response.json();
+  return {
+    data: fromFirestoreValue(document.fields?.data),
+    updatedAt: document.fields?.updatedAt?.timestampValue || "",
+  };
 }
 
 async function ensureCloudSession() {
-  if (!cloud.session?.refresh_token || !hasCloudConfig()) return;
-  const expiresAt = Number(cloud.session.expires_at || 0);
+  if (!cloud.session?.refreshToken || !hasCloudConfig()) return;
+  const expiresAt = Number(cloud.session.expiresAt || 0);
   const shouldRefresh = expiresAt && Date.now() / 1000 > expiresAt - 60;
   if (!shouldRefresh) return;
 
-  const result = await cloudAuthRequest("/auth/v1/token?grant_type=refresh_token", {
-    refresh_token: cloud.session.refresh_token,
+  const response = await fetch(`https://securetoken.googleapis.com/v1/token?key=${encodeURIComponent(FIREBASE_CONFIG.apiKey)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: cloud.session.refreshToken,
+    }),
   });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(firebaseErrorMessage(result.error?.message || "Session refresh failed"));
   cloud.session = normaliseSession(result);
   saveCloudConfigToStorage();
 }
 
-async function cloudAuthRequest(path, body) {
-  const response = await fetch(`${cloud.url}${path}`, {
+async function cloudAuthRequest(action, body) {
+  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:${action}?key=${encodeURIComponent(FIREBASE_CONFIG.apiKey)}`, {
     method: "POST",
-    headers: {
-      apikey: cloud.anonKey,
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error_description || result.msg || result.message || "Supabase request failed");
+  if (!response.ok) throw new Error(firebaseErrorMessage(result.error?.message || "Firebase auth failed"));
   return result;
 }
 
-async function cloudDataRequest(path, options) {
-  return fetch(`${cloud.url}${path}`, {
+async function cloudDataRequest(url, options) {
+  await ensureCloudSession();
+  return fetch(url, {
     ...options,
     headers: {
-      apikey: cloud.anonKey,
-      Authorization: `Bearer ${cloud.session.access_token}`,
+      Authorization: `Bearer ${cloud.session.idToken}`,
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
@@ -474,12 +488,62 @@ async function cloudDataRequest(path, options) {
 }
 
 function normaliseSession(result) {
+  const previous = cloud.session || {};
+  const expiresIn = Number(result.expiresIn || result.expires_in || 3600);
   return {
-    access_token: result.access_token || result.session?.access_token,
-    refresh_token: result.refresh_token || result.session?.refresh_token,
-    expires_at: result.expires_at || result.session?.expires_at,
-    user: result.user || result.session?.user,
+    idToken: result.idToken || result.id_token || result.access_token,
+    refreshToken: result.refreshToken || result.refresh_token || previous.refreshToken,
+    expiresAt: Math.floor(Date.now() / 1000) + expiresIn,
+    localId: result.localId || result.user_id || previous.localId,
+    email: result.email || previous.email || els.syncEmail.value.trim(),
   };
+}
+
+function firestoreBudgetDocumentUrl() {
+  return `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(FIREBASE_CONFIG.projectId)}/databases/(default)/documents/users/${encodeURIComponent(cloud.session.localId)}/budget/state`;
+}
+
+function firebaseErrorMessage(message) {
+  const code = String(message || "").split(" : ")[0];
+  const messages = {
+    EMAIL_EXISTS: "An account already exists for this email.",
+    EMAIL_NOT_FOUND: "No account found for this email.",
+    INVALID_LOGIN_CREDENTIALS: "Email or password is incorrect.",
+    INVALID_PASSWORD: "Email or password is incorrect.",
+    WEAK_PASSWORD: "Use a password with at least 6 characters.",
+    PERMISSION_DENIED: "Firestore permission denied. Check the database rules.",
+    CONFIGURATION_NOT_FOUND: "Enable Email/Password sign-in in Firebase Authentication.",
+  };
+  return messages[code] || message || "Firebase request failed";
+}
+
+function toFirestoreValue(value) {
+  if (value === null || value === undefined) return { nullValue: "NULL_VALUE" };
+  if (Array.isArray(value)) return { arrayValue: { values: value.map(toFirestoreValue) } };
+  if (typeof value === "object") {
+    return {
+      mapValue: {
+        fields: Object.fromEntries(Object.entries(value).map(([key, item]) => [key, toFirestoreValue(item)])),
+      },
+    };
+  }
+  if (typeof value === "number") return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
+  if (typeof value === "boolean") return { booleanValue: value };
+  return { stringValue: String(value) };
+}
+
+function fromFirestoreValue(value) {
+  if (!value || "nullValue" in value) return null;
+  if ("stringValue" in value) return value.stringValue;
+  if ("integerValue" in value) return Number(value.integerValue);
+  if ("doubleValue" in value) return Number(value.doubleValue);
+  if ("booleanValue" in value) return value.booleanValue;
+  if ("timestampValue" in value) return value.timestampValue;
+  if ("arrayValue" in value) return (value.arrayValue.values || []).map(fromFirestoreValue);
+  if ("mapValue" in value) {
+    return Object.fromEntries(Object.entries(value.mapValue.fields || {}).map(([key, item]) => [key, fromFirestoreValue(item)]));
+  }
+  return null;
 }
 
 function exportStateSnapshot() {
@@ -499,7 +563,7 @@ function applyCloudState(snapshot) {
   state.monthly = snapshot.monthly && typeof snapshot.monthly === "object" ? snapshot.monthly : {};
   state.categories = normaliseCategories(snapshot.categories);
   state.billPayments = snapshot.billPayments && typeof snapshot.billPayments === "object" ? snapshot.billPayments : {};
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(activeStorageKey(), JSON.stringify(state));
   isApplyingCloudState = false;
   populateCategories();
   setDefaultCategoryValues();

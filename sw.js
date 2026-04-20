@@ -1,11 +1,11 @@
-const CACHE_NAME = "poundwise-wealth-v6";
+const CACHE_NAME = "poundwise-wealth-v7";
 const APP_ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./manifest.webmanifest",
-  "./supabase-schema.sql",
+  "./firestore.rules",
   "./icons/poundwise-icon.svg"
 ];
 
