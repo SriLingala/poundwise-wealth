@@ -36,7 +36,7 @@ const els = {
   monthPicker: document.querySelector("#monthPicker"),
   previousMonth: document.querySelector("#previousMonth"),
   nextMonth: document.querySelector("#nextMonth"),
-  incomeMetric: document.querySelector("#incomeMetric"),
+  incomeQuickInput: document.querySelector("#incomeQuickInput"),
   spentMetric: document.querySelector("#spentMetric"),
   remainingMetric: document.querySelector("#remainingMetric"),
   futureRateMetric: document.querySelector("#futureRateMetric"),
@@ -101,6 +101,14 @@ function init() {
   els.previousMonth.addEventListener("click", () => shiftMonth(-1));
   els.nextMonth.addEventListener("click", () => shiftMonth(1));
   els.saveBudget.addEventListener("click", saveBudgetSettings);
+  els.incomeQuickInput.addEventListener("change", () => saveIncome(els.incomeQuickInput.value));
+  els.incomeQuickInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      els.incomeQuickInput.blur();
+    }
+  });
+  els.monthlyIncome.addEventListener("change", () => saveIncome(els.monthlyIncome.value));
   els.expenseForm.addEventListener("submit", addExpense);
   els.billForm.addEventListener("submit", addBill);
   els.categoryForm.addEventListener("submit", addCategory);
@@ -213,7 +221,9 @@ function renderMetrics() {
   const wealthTotal = totals.settings.currentWealth + totals.futureActual;
   const wealthProgress = percentOf(wealthTotal, totals.settings.wealthGoal);
 
-  els.incomeMetric.textContent = currency.format(totals.income);
+  if (document.activeElement !== els.incomeQuickInput) {
+    els.incomeQuickInput.value = moneyInput(totals.income);
+  }
   els.spentMetric.textContent = currency.format(totals.totalTracked);
   els.remainingMetric.textContent = currency.format(totals.remaining);
   els.futureRateMetric.textContent = `${Math.round(totals.futureRate)}%`;
@@ -661,6 +671,15 @@ function saveBudgetSettings() {
     settings.categoryBudgets[input.dataset.budgetCategory] = normaliseMoney(input.value);
   });
 
+  persist();
+  render();
+}
+
+function saveIncome(value) {
+  const settings = ensureMonthlySettings(selectedMonth);
+  settings.income = normaliseMoney(value);
+  els.monthlyIncome.value = moneyInput(settings.income);
+  els.incomeQuickInput.value = moneyInput(settings.income);
   persist();
   render();
 }

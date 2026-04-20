@@ -61,7 +61,10 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v10H4zm2 2v6h12V9zm3 1h6v2H9z"/></svg>
             </div>
             <p>Monthly income</p>
-            <strong id="incomeMetric">£0.00</strong>
+            <div class="metric-money-input">
+              <span>£</span>
+              <input type="number" id="incomeQuickInput" min="0" step="0.01" inputmode="decimal" aria-label="Monthly income" placeholder="0.00" />
+            </div>
           </article>
           <article class="metric-card">
             <div class="metric-icon spend">
