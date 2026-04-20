@@ -127,6 +127,10 @@ body.auth-required .app-shell,
   font-weight: 900;
 }
 
+.auth-status[hidden] {
+  display: none;
+}
+
 button,
 input,
 select,

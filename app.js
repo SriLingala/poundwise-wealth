@@ -313,11 +313,12 @@ function updateCloudStatus(message, isError = false) {
   if (!els.cloudStatus) return;
   els.cloudStatus.textContent = message;
   els.cloudStatus.classList.toggle("warning-pill", isError);
-  updateAuthStatus(message, isError);
+  if (message !== "Not connected") updateAuthStatus(message, isError);
 }
 
 function updateAuthStatus(message, isError = false) {
   if (!els.authStatus) return;
+  els.authStatus.hidden = !message || message === "Not connected";
   els.authStatus.textContent = message;
   els.authStatus.classList.toggle("warning-pill", isError);
 }
