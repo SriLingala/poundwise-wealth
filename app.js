@@ -31,11 +31,13 @@ const DEFAULT_TARGETS = {
 
 const state = loadState();
 let selectedMonth = monthKey(new Date());
+let settingsAutosaveTimer;
 
 const els = {
   monthPicker: document.querySelector("#monthPicker"),
   previousMonth: document.querySelector("#previousMonth"),
   nextMonth: document.querySelector("#nextMonth"),
+  storageStatus: document.querySelector("#storageStatus"),
   incomeQuickInput: document.querySelector("#incomeQuickInput"),
   spentMetric: document.querySelector("#spentMetric"),
   remainingMetric: document.querySelector("#remainingMetric"),
@@ -101,14 +103,23 @@ function init() {
   els.previousMonth.addEventListener("click", () => shiftMonth(-1));
   els.nextMonth.addEventListener("click", () => shiftMonth(1));
   els.saveBudget.addEventListener("click", saveBudgetSettings);
-  els.incomeQuickInput.addEventListener("change", () => saveIncome(els.incomeQuickInput.value));
+  els.incomeQuickInput.addEventListener("input", () => saveIncome(els.incomeQuickInput.value, false));
+  els.incomeQuickInput.addEventListener("change", () => saveIncome(els.incomeQuickInput.value, true));
   els.incomeQuickInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
       els.incomeQuickInput.blur();
     }
   });
-  els.monthlyIncome.addEventListener("change", () => saveIncome(els.monthlyIncome.value));
+  els.monthlyIncome.addEventListener("input", scheduleSettingsAutosave);
+  els.currentWealth.addEventListener("input", scheduleSettingsAutosave);
+  els.wealthGoal.addEventListener("input", scheduleSettingsAutosave);
+  els.targetNeeds.addEventListener("input", scheduleSettingsAutosave);
+  els.targetWants.addEventListener("input", scheduleSettingsAutosave);
+  els.targetFuture.addEventListener("input", scheduleSettingsAutosave);
+  els.categoryTable.addEventListener("input", (event) => {
+    if (event.target.matches("[data-budget-category]")) scheduleSettingsAutosave();
+  });
   els.expenseForm.addEventListener("submit", addExpense);
   els.billForm.addEventListener("submit", addBill);
   els.categoryForm.addEventListener("submit", addCategory);
@@ -117,7 +128,12 @@ function init() {
   els.categoryFilter.addEventListener("change", renderTransactions);
   els.exportCsv.addEventListener("click", exportCsv);
   els.resetDemo.addEventListener("click", seedDemoData);
+  window.addEventListener("beforeunload", () => savePlanSettings(false));
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") savePlanSettings(false);
+  });
 
+  updateStorageStatus("Saving locally on this device");
   render();
 }
 
@@ -169,7 +185,14 @@ function normaliseCategories(categories) {
 }
 
 function persist() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    updateStorageStatus("Saved locally on this device");
+    return true;
+  } catch {
+    updateStorageStatus("Storage is blocked. Export CSV after changes.", true);
+    return false;
+  }
 }
 
 function populateCategories() {
@@ -657,6 +680,10 @@ function deleteCategory(name) {
 }
 
 function saveBudgetSettings() {
+  savePlanSettings(true);
+}
+
+function savePlanSettings(renderAfter) {
   const settings = ensureMonthlySettings(selectedMonth);
   settings.income = normaliseMoney(els.monthlyIncome.value);
   settings.currentWealth = normaliseMoney(els.currentWealth.value);
@@ -672,16 +699,34 @@ function saveBudgetSettings() {
   });
 
   persist();
-  render();
+  if (renderAfter) render();
 }
 
-function saveIncome(value) {
+function saveIncome(value, renderAfter = true) {
   const settings = ensureMonthlySettings(selectedMonth);
   settings.income = normaliseMoney(value);
-  els.monthlyIncome.value = moneyInput(settings.income);
-  els.incomeQuickInput.value = moneyInput(settings.income);
+  if (document.activeElement !== els.monthlyIncome) {
+    els.monthlyIncome.value = moneyInput(settings.income);
+  }
+  if (document.activeElement !== els.incomeQuickInput) {
+    els.incomeQuickInput.value = moneyInput(settings.income);
+  }
   persist();
-  render();
+  if (renderAfter) render();
+}
+
+function scheduleSettingsAutosave() {
+  clearTimeout(settingsAutosaveTimer);
+  updateStorageStatus("Saving...");
+  settingsAutosaveTimer = setTimeout(() => {
+    savePlanSettings(false);
+  }, 250);
+}
+
+function updateStorageStatus(message, isError = false) {
+  if (!els.storageStatus) return;
+  els.storageStatus.textContent = message;
+  els.storageStatus.classList.toggle("storage-error", isError);
 }
 
 function ensureMonthlySettings(key) {

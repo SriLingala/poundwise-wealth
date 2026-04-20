@@ -790,6 +790,23 @@ textarea:focus {
   font-size: 1rem;
 }
 
+.storage-status {
+  display: inline-flex;
+  width: fit-content;
+  margin: 10px 0 0;
+  border-radius: 8px;
+  background: rgba(23, 107, 77, 0.1);
+  color: var(--green);
+  padding: 6px 9px;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.storage-status.storage-error {
+  background: #fae1e5;
+  color: var(--red);
+}
+
 .framework-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
