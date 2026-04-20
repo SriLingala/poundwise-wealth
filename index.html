@@ -37,8 +37,20 @@
         </div>
       </header>
 
+      <nav class="tab-nav" aria-label="Budget app sections">
+        <button class="tab-button active" type="button" data-tab="dashboard">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h7V4H4zm9 7h7V4h-7zM4 20h7v-5H4z"/></svg>
+          Monthly Dashboard
+        </button>
+        <button class="tab-button" type="button" data-tab="setup">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13.5c.1-.5.1-1 .1-1.5s0-1-.1-1.5l2-1.5-2-3.4-2.4 1a8 8 0 0 0-2.6-1.5L14 2h-4l-.4 3.1A8 8 0 0 0 7 6.6l-2.4-1-2 3.4 2 1.5A9 9 0 0 0 4.5 12c0 .5 0 1 .1 1.5l-2 1.5 2 3.4 2.4-1a8 8 0 0 0 2.6 1.5L10 22h4l.4-3.1a8 8 0 0 0 2.6-1.5l2.4 1 2-3.4zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/></svg>
+          Budgets & Recurring
+        </button>
+      </nav>
+
       <main>
-        <section class="framework-strip" aria-label="Needs, Wants and Future You framework">
+        <section class="tab-panel active" id="dashboardTab" data-tab-panel="dashboard">
+          <section class="framework-strip" aria-label="Needs, Wants and Future You framework">
           <article class="framework-card needs-card">
             <span>Needs</span>
             <strong>Keep life stable</strong>
@@ -54,9 +66,9 @@
             <strong>Build wealth</strong>
             <p>Savings, investments, debt freedom, and assets that move you toward six figures.</p>
           </article>
-        </section>
+          </section>
 
-        <section class="summary-grid" aria-label="Monthly summary">
+          <section class="summary-grid" aria-label="Monthly summary">
           <article class="metric-card">
             <div class="metric-icon income">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v10H4zm2 2v6h12V9zm3 1h6v2H9z"/></svg>
@@ -102,9 +114,9 @@
             <p>Six-figure progress</p>
             <strong id="wealthGoalMetric">0%</strong>
           </article>
-        </section>
+          </section>
 
-        <section class="workspace">
+          <section class="workspace">
           <div class="panel main-panel">
             <div class="panel-heading">
               <div>
@@ -245,9 +257,33 @@
               </button>
             </form>
           </aside>
+          </section>
+
+          <section class="panel transactions-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Transactions</p>
+                <h2>Entries in selected month</h2>
+              </div>
+              <div class="filter-bar">
+                <label>
+                  <span>Search</span>
+                  <input type="search" id="searchInput" placeholder="Find an entry..." />
+                </label>
+                <label>
+                  <span>Category</span>
+                  <select id="categoryFilter">
+                    <option value="All">All</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+            <div class="transactions" id="transactions"></div>
+          </section>
         </section>
 
-        <section class="lower-grid">
+        <section class="tab-panel" id="setupTab" data-tab-panel="setup">
+          <section class="lower-grid">
           <article class="panel">
             <div class="panel-heading">
               <div>
@@ -373,7 +409,7 @@
           </div>
         </section>
 
-        <section class="lower-grid">
+        <section class="lower-grid setup-single">
           <article class="panel">
             <div class="panel-heading">
               <div>
@@ -406,27 +442,7 @@
             <div class="bills-list" id="billsList"></div>
           </article>
 
-          <article class="panel">
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow">Transactions</p>
-                <h2>Entries in selected month</h2>
-              </div>
-              <div class="filter-bar">
-                <label>
-                  <span>Search</span>
-                  <input type="search" id="searchInput" placeholder="Find an entry..." />
-                </label>
-                <label>
-                  <span>Category</span>
-                  <select id="categoryFilter">
-                    <option value="All">All</option>
-                  </select>
-                </label>
-              </div>
-            </div>
-            <div class="transactions" id="transactions"></div>
-          </article>
+        </section>
         </section>
       </main>
       <a class="quick-add-link" href="#expenseForm" aria-label="Jump to add entry">

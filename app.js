@@ -1,6 +1,7 @@
 const STORAGE_KEY = "poundwise-budget-v2";
 const LEGACY_STORAGE_KEY = "poundwise-budget-v1";
 const CLOUD_CONFIG_KEY = "poundwise-cloud-config-v1";
+const ACTIVE_TAB_KEY = "poundwise-active-tab-v1";
 
 const BUCKETS = [
   { name: "Needs", color: "#176b4d", short: "Protect today" },
@@ -39,6 +40,9 @@ let isApplyingCloudState = false;
 
 const els = {
   monthPicker: document.querySelector("#monthPicker"),
+  tabButtons: document.querySelectorAll("[data-tab]"),
+  tabPanels: document.querySelectorAll("[data-tab-panel]"),
+  quickAddLink: document.querySelector(".quick-add-link"),
   previousMonth: document.querySelector("#previousMonth"),
   nextMonth: document.querySelector("#nextMonth"),
   storageStatus: document.querySelector("#storageStatus"),
@@ -143,6 +147,10 @@ function init() {
   els.categoryFilter.addEventListener("change", renderTransactions);
   els.exportCsv.addEventListener("click", exportCsv);
   els.resetDemo.addEventListener("click", seedDemoData);
+  els.tabButtons.forEach((button) => {
+    button.addEventListener("click", () => activateTab(button.dataset.tab));
+  });
+  els.quickAddLink.addEventListener("click", () => activateTab("dashboard"));
   els.saveCloudConfig.addEventListener("click", saveCloudConfig);
   els.signUpCloud.addEventListener("click", signUpCloud);
   els.signInCloud.addEventListener("click", signInCloud);
@@ -156,6 +164,7 @@ function init() {
 
   updateStorageStatus("Saving locally on this device");
   renderCloudSettings();
+  activateTab(localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard");
   render();
 }
 
@@ -487,6 +496,19 @@ function setDefaultCategoryValues() {
   if (grocery) els.expenseForm.elements.category.value = grocery.name;
   if (councilTax) els.billForm.elements.category.value = councilTax.name;
   updateExpenseBucketPreview();
+}
+
+function activateTab(tabName) {
+  const nextTab = tabName === "setup" ? "setup" : "dashboard";
+  els.tabButtons.forEach((button) => {
+    const active = button.dataset.tab === nextTab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  els.tabPanels.forEach((panel) => {
+    panel.classList.toggle("active", panel.dataset.tabPanel === nextTab);
+  });
+  localStorage.setItem(ACTIVE_TAB_KEY, nextTab);
 }
 
 function render() {
