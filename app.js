@@ -2,6 +2,7 @@ const STORAGE_KEY = "poundwise-budget-v2";
 const LEGACY_STORAGE_KEY = "poundwise-budget-v1";
 const CLOUD_CONFIG_KEY = "poundwise-firebase-cloud-v1";
 const ACTIVE_TAB_KEY = "poundwise-active-tab-v1";
+const AUTH_SKIP_KEY = "poundwise-auth-skip-v1";
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyD_nIUpj0smU5K664aO5ob3Cn0kXLKUcZc",
@@ -65,8 +66,17 @@ let selectedMonth = monthKey(new Date());
 let settingsAutosaveTimer;
 let cloudSyncTimer;
 let isApplyingCloudState = false;
+let authDismissed = localStorage.getItem(AUTH_SKIP_KEY) === "true";
 
 const els = {
+  authScreen: document.querySelector("#authScreen"),
+  authForm: document.querySelector("#authForm"),
+  authEmail: document.querySelector("#authEmail"),
+  authPassword: document.querySelector("#authPassword"),
+  authCreate: document.querySelector("#authCreate"),
+  authSignIn: document.querySelector("#authSignIn"),
+  authContinueOffline: document.querySelector("#authContinueOffline"),
+  authStatus: document.querySelector("#authStatus"),
   monthPicker: document.querySelector("#monthPicker"),
   tabButtons: document.querySelectorAll("[data-tab]"),
   tabPanels: document.querySelectorAll("[data-tab-panel]"),
@@ -174,9 +184,15 @@ function init() {
   els.tabButtons.forEach((button) => {
     button.addEventListener("click", () => activateTab(button.dataset.tab));
   });
+  els.authForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    signInCloud("auth");
+  });
+  els.authCreate.addEventListener("click", () => signUpCloud("auth"));
+  els.authContinueOffline.addEventListener("click", continueOffline);
   els.quickAddLink.addEventListener("click", () => activateTab("dashboard"));
-  els.signUpCloud.addEventListener("click", signUpCloud);
-  els.signInCloud.addEventListener("click", signInCloud);
+  els.signUpCloud.addEventListener("click", () => signUpCloud("panel"));
+  els.signInCloud.addEventListener("click", () => signInCloud("panel"));
   els.syncCloudNow.addEventListener("click", () => pushToCloud(true));
   els.pullCloudNow.addEventListener("click", () => pullFromCloud(true));
   els.signOutCloud.addEventListener("click", signOutCloud);
@@ -188,6 +204,7 @@ function init() {
   renderCloudSettings();
   activateTab(localStorage.getItem(ACTIVE_TAB_KEY) || "dashboard");
   render();
+  renderAuthScreen();
 }
 
 function loadState() {
@@ -293,15 +310,50 @@ function updateCloudStatus(message, isError = false) {
   if (!els.cloudStatus) return;
   els.cloudStatus.textContent = message;
   els.cloudStatus.classList.toggle("warning-pill", isError);
+  updateAuthStatus(message, isError);
 }
 
-async function signUpCloud() {
+function updateAuthStatus(message, isError = false) {
+  if (!els.authStatus) return;
+  els.authStatus.textContent = message;
+  els.authStatus.classList.toggle("warning-pill", isError);
+}
+
+function renderAuthScreen() {
+  const shouldShow = !cloud.session?.idToken && !authDismissed;
+  els.authScreen.hidden = !shouldShow;
+  document.body.classList.toggle("auth-required", shouldShow);
+  if (cloud.session?.email) {
+    els.authEmail.value = cloud.session.email;
+    els.syncEmail.value = cloud.session.email;
+  }
+}
+
+function continueOffline() {
+  authDismissed = true;
+  localStorage.setItem(AUTH_SKIP_KEY, "true");
+  updateAuthStatus("Using this device only");
+  renderAuthScreen();
+}
+
+function getCloudCredentials(source) {
+  const emailInput = source === "auth" ? els.authEmail : els.syncEmail;
+  const passwordInput = source === "auth" ? els.authPassword : els.syncPassword;
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+  els.authEmail.value = email;
+  els.syncEmail.value = email;
+  els.authPassword.value = password;
+  els.syncPassword.value = password;
+  return { email, password };
+}
+
+async function signUpCloud(source = "panel") {
   if (!hasCloudConfig()) {
     updateCloudStatus("Firebase project config missing", true);
     return;
   }
-  const email = els.syncEmail.value.trim();
-  const password = els.syncPassword.value;
+  const { email, password } = getCloudCredentials(source);
   if (!email || !password) {
     updateCloudStatus("Enter email and password", true);
     return;
@@ -313,20 +365,22 @@ async function signUpCloud() {
     cloud.session = normaliseSession(result);
     saveCloudConfigToStorage();
     await pushToCloud(false);
+    authDismissed = false;
+    localStorage.removeItem(AUTH_SKIP_KEY);
     updateCloudStatus(`Connected: ${cloud.session.email}`);
     renderCloudSettings();
+    renderAuthScreen();
   } catch (error) {
     updateCloudStatus(error.message, true);
   }
 }
 
-async function signInCloud() {
+async function signInCloud(source = "panel") {
   if (!hasCloudConfig()) {
     updateCloudStatus("Firebase project config missing", true);
     return;
   }
-  const email = els.syncEmail.value.trim();
-  const password = els.syncPassword.value;
+  const { email, password } = getCloudCredentials(source);
   if (!email || !password) {
     updateCloudStatus("Enter email and password", true);
     return;
@@ -337,8 +391,11 @@ async function signInCloud() {
     const result = await cloudAuthRequest("signInWithPassword", { email, password, returnSecureToken: true });
     cloud.session = normaliseSession(result);
     saveCloudConfigToStorage();
+    authDismissed = false;
+    localStorage.removeItem(AUTH_SKIP_KEY);
     renderCloudSettings();
     await reconcileCloudAfterSignIn();
+    renderAuthScreen();
   } catch (error) {
     updateCloudStatus(error.message, true);
   }
@@ -352,10 +409,14 @@ function signOutCloud() {
   }
   clearTimeout(cloudSyncTimer);
   cloud.session = null;
+  authDismissed = false;
+  localStorage.removeItem(AUTH_SKIP_KEY);
+  els.authPassword.value = "";
   els.syncPassword.value = "";
   saveCloudConfigToStorage();
   applyCloudState(loadState());
   renderCloudSettings();
+  renderAuthScreen();
 }
 
 async function reconcileCloudAfterSignIn() {

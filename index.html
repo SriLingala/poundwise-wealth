@@ -15,6 +15,34 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <section class="auth-screen" id="authScreen" hidden>
+      <div class="auth-brand">
+        <p class="eyebrow">Poundwise Wealth</p>
+        <h1>Track every pound from any device.</h1>
+        <p>Create an account to keep your budget synced between iPhone and desktop.</p>
+      </div>
+      <form class="auth-card" id="authForm">
+        <div>
+          <p class="eyebrow">Account</p>
+          <h2>Sign in or create account</h2>
+        </div>
+        <label>
+          <span>Email</span>
+          <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email" required />
+        </label>
+        <label>
+          <span>Password</span>
+          <input type="password" id="authPassword" placeholder="Minimum 6 characters" autocomplete="current-password" required />
+        </label>
+        <div class="auth-actions">
+          <button class="primary-button compact-button" id="authSignIn" type="submit">Sign in</button>
+          <button class="secondary-button" id="authCreate" type="button">Create account</button>
+        </div>
+        <button class="secondary-button auth-offline-button" id="authContinueOffline" type="button">Continue without cloud sync</button>
+        <p class="auth-status" id="authStatus">Not connected</p>
+      </form>
+    </section>
+
     <div class="app-shell">
       <header class="topbar">
         <div>
