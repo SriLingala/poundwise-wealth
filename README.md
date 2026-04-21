@@ -15,6 +15,7 @@ Poundwise Wealth is a private, installable budgeting system for tracking every p
 - CSV export
 - Progressive Web App setup for iPhone Home Screen installation
 - Firebase/Google Cloud sync across devices with separate data per user
+- Password reset for Firebase accounts
 
 ## Use
 
@@ -31,3 +32,4 @@ The app is configured for Firebase project `poundwise-493918`.
 5. Keep the same account signed in on each browser/device to sync budget data automatically.
 
 Each Firebase user stores budget data under their own user ID, so multiple people can use the same hosted app without seeing each other's data.
+If a user adds data before signing in, the app merges local entries with existing cloud data on first sync.

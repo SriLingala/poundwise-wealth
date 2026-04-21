@@ -75,7 +75,12 @@ const els = {
   authPassword: document.querySelector("#authPassword"),
   authCreate: document.querySelector("#authCreate"),
   authSignIn: document.querySelector("#authSignIn"),
+  authForgotPassword: document.querySelector("#authForgotPassword"),
   authStatus: document.querySelector("#authStatus"),
+  userProfile: document.querySelector("#userProfile"),
+  userAvatar: document.querySelector("#userAvatar"),
+  userEmail: document.querySelector("#userEmail"),
+  topSignOut: document.querySelector("#topSignOut"),
   monthPicker: document.querySelector("#monthPicker"),
   tabButtons: document.querySelectorAll("[data-tab]"),
   tabPanels: document.querySelectorAll("[data-tab-panel]"),
@@ -129,6 +134,7 @@ const els = {
   syncPassword: document.querySelector("#syncPassword"),
   signUpCloud: document.querySelector("#signUpCloud"),
   signInCloud: document.querySelector("#signInCloud"),
+  forgotPasswordCloud: document.querySelector("#forgotPasswordCloud"),
   syncCloudNow: document.querySelector("#syncCloudNow"),
   pullCloudNow: document.querySelector("#pullCloudNow"),
   signOutCloud: document.querySelector("#signOutCloud"),
@@ -188,12 +194,15 @@ function init() {
     signInCloud("auth");
   });
   els.authCreate.addEventListener("click", () => signUpCloud("auth"));
+  els.authForgotPassword.addEventListener("click", () => sendPasswordReset("auth"));
   els.quickAddLink.addEventListener("click", () => activateTab("dashboard"));
   els.signUpCloud.addEventListener("click", () => signUpCloud("panel"));
   els.signInCloud.addEventListener("click", () => signInCloud("panel"));
+  els.forgotPasswordCloud.addEventListener("click", () => sendPasswordReset("panel"));
   els.syncCloudNow.addEventListener("click", () => pushToCloud(true));
   els.pullCloudNow.addEventListener("click", () => pullFromCloud(true));
   els.signOutCloud.addEventListener("click", signOutCloud);
+  els.topSignOut.addEventListener("click", signOutCloud);
   window.addEventListener("beforeunload", () => savePlanSettings(false));
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") savePlanSettings(false);
@@ -298,6 +307,9 @@ function saveCloudConfigToStorage() {
 function renderCloudSettings() {
   updateCloudStatus(cloud.session ? `Connected: ${cloud.session.email}` : "Not connected");
   const connected = Boolean(cloud.session?.idToken && cloud.session?.localId);
+  els.userProfile.hidden = !connected;
+  els.userEmail.textContent = cloud.session?.email || "Account";
+  els.userAvatar.textContent = profileInitials(cloud.session?.email || "");
   els.syncCloudNow.disabled = !connected;
   els.pullCloudNow.disabled = !connected;
   els.signOutCloud.disabled = !connected;
@@ -343,6 +355,39 @@ function getCloudCredentials(source) {
   els.authPassword.value = password;
   els.syncPassword.value = password;
   return { email, password };
+}
+
+function getEmailForReset(source) {
+  const input = source === "auth" ? els.authEmail : els.syncEmail;
+  const email = input.value.trim() || cloud.session?.email || "";
+  els.authEmail.value = email;
+  els.syncEmail.value = email;
+  return email;
+}
+
+async function sendPasswordReset(source = "auth") {
+  const email = getEmailForReset(source);
+  if (!email) {
+    updateCloudStatus("Enter your email first", true);
+    return;
+  }
+
+  try {
+    updateCloudStatus("Sending password reset...");
+    await cloudAuthRequest("sendOobCode", {
+      requestType: "PASSWORD_RESET",
+      email,
+    });
+    updateCloudStatus(`Password reset sent to ${email}`);
+  } catch (error) {
+    updateCloudStatus(error.message, true);
+  }
+}
+
+function profileInitials(email) {
+  const name = String(email).split("@")[0].replace(/[^a-z0-9]+/gi, " ").trim();
+  if (!name) return "P";
+  return name.split(" ").slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 }
 
 async function signUpCloud(source = "panel") {
@@ -413,6 +458,7 @@ function signOutCloud() {
 }
 
 async function reconcileCloudAfterSignIn() {
+  const localSnapshot = exportStateSnapshot();
   const cloudRow = await fetchCloudRow();
   if (!cloudRow?.data) {
     await pushToCloud(false);
@@ -420,9 +466,11 @@ async function reconcileCloudAfterSignIn() {
     return;
   }
 
-  applyCloudState(cloudRow.data);
-  cloud.lastSyncedAt = cloudRow.updatedAt || new Date().toISOString();
-  saveCloudConfigToStorage();
+  const merged = hasUserData(localSnapshot)
+    ? mergeSnapshots(cloudRow.data, localSnapshot)
+    : cloudRow.data;
+  applyCloudState(merged);
+  await pushToCloud(false);
   updateCloudStatus("Cloud connected and synced");
 }
 
@@ -598,6 +646,7 @@ function firebaseErrorMessage(message) {
     WEAK_PASSWORD: "Use a password with at least 6 characters.",
     PERMISSION_DENIED: "Firestore permission denied. Check the database rules.",
     CONFIGURATION_NOT_FOUND: "Enable Email/Password sign-in in Firebase Authentication.",
+    RESET_PASSWORD_EXCEED_LIMIT: "Too many reset emails. Try again later.",
   };
   return messages[code] || message || "Firebase request failed";
 }
@@ -649,10 +698,104 @@ function applyCloudState(snapshot) {
   state.categories = normaliseCategories(snapshot.categories);
   state.billPayments = snapshot.billPayments && typeof snapshot.billPayments === "object" ? snapshot.billPayments : {};
   localStorage.setItem(activeStorageKey(), JSON.stringify(state));
-  isApplyingCloudState = false;
   populateCategories();
   setDefaultCategoryValues();
   render();
+  isApplyingCloudState = false;
+}
+
+function mergeSnapshots(cloudSnapshot, localSnapshot) {
+  const cloudData = normaliseSnapshot(cloudSnapshot);
+  const localData = normaliseSnapshot(localSnapshot);
+  return {
+    expenses: mergeRecords(cloudData.expenses, localData.expenses, expenseSignature),
+    bills: mergeRecords(cloudData.bills, localData.bills, billSignature),
+    monthly: mergeMonthlySettings(cloudData.monthly, localData.monthly),
+    categories: mergeCategories(cloudData.categories, localData.categories),
+    billPayments: { ...cloudData.billPayments, ...localData.billPayments },
+  };
+}
+
+function normaliseSnapshot(snapshot = {}) {
+  return {
+    expenses: Array.isArray(snapshot.expenses) ? snapshot.expenses : [],
+    bills: Array.isArray(snapshot.bills) ? snapshot.bills : [],
+    monthly: snapshot.monthly && typeof snapshot.monthly === "object" ? snapshot.monthly : {},
+    categories: normaliseCategories(snapshot.categories),
+    billPayments: snapshot.billPayments && typeof snapshot.billPayments === "object" ? snapshot.billPayments : {},
+  };
+}
+
+function mergeRecords(primary, secondary, signatureFn) {
+  const byId = new Map();
+  const signatures = new Set();
+  [...primary, ...secondary].forEach((item) => {
+    const id = item.id || signatureFn(item);
+    const signature = signatureFn(item);
+    if (signatures.has(signature) && !byId.has(id)) return;
+    byId.set(id, { ...byId.get(id), ...item, id });
+    signatures.add(signature);
+  });
+  return [...byId.values()];
+}
+
+function mergeCategories(primary, secondary) {
+  const byName = new Map();
+  [...primary, ...secondary].forEach((category) => {
+    const name = String(category.name || "").trim();
+    if (!name) return;
+    byName.set(name.toLowerCase(), { ...byName.get(name.toLowerCase()), ...category, name });
+  });
+  return normaliseCategories([...byName.values()]);
+}
+
+function mergeMonthlySettings(primary, secondary) {
+  const merged = { ...primary };
+  Object.entries(secondary).forEach(([key, localSettings]) => {
+    if (!monthlySettingsHasUserData(localSettings)) return;
+    const cloudSettings = merged[key] || {};
+    merged[key] = {
+      ...cloudSettings,
+      ...localSettings,
+      targets: { ...(cloudSettings.targets || {}), ...(localSettings.targets || {}) },
+      categoryBudgets: { ...(cloudSettings.categoryBudgets || {}), ...(localSettings.categoryBudgets || {}) },
+    };
+  });
+  return merged;
+}
+
+function monthlySettingsHasUserData(settings = {}) {
+  if (normaliseMoney(settings.income) > 0 || normaliseMoney(settings.currentWealth) > 0) return true;
+  if (normaliseMoney(settings.wealthGoal || 100000) !== 100000) return true;
+  if (settings.targets && Object.keys(DEFAULT_TARGETS).some((key) => Number(settings.targets[key]) !== DEFAULT_TARGETS[key])) return true;
+  const budgets = settings.categoryBudgets || {};
+  return Object.entries(budgets).some(([name, value]) => normaliseMoney(value) !== defaultCategoryBudget(name));
+}
+
+function hasUserData(snapshot = {}) {
+  const data = normaliseSnapshot(snapshot);
+  return Boolean(
+    data.expenses.length ||
+    data.bills.length ||
+    data.categories.some((category) => {
+      const fallback = DEFAULT_CATEGORIES.find((item) => item.name === category.name);
+      return !fallback || fallback.bucket !== category.bucket || fallback.color !== category.color || normaliseMoney(fallback.budget) !== normaliseMoney(category.budget);
+    }) ||
+    Object.values(data.monthly).some(monthlySettingsHasUserData) ||
+    Object.keys(data.billPayments).length
+  );
+}
+
+function defaultCategoryBudget(name) {
+  return normaliseMoney(DEFAULT_CATEGORIES.find((category) => category.name === name)?.budget || 0);
+}
+
+function expenseSignature(expense) {
+  return [expense.date, expense.description, expense.amount, expense.category, expense.method, expense.note].map((value) => String(value || "").trim().toLowerCase()).join("|");
+}
+
+function billSignature(bill) {
+  return [bill.name, bill.category, bill.amount, bill.dueDay].map((value) => String(value || "").trim().toLowerCase()).join("|");
 }
 
 function populateCategories() {

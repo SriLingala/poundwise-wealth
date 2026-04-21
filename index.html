@@ -38,6 +38,7 @@
           <button class="primary-button compact-button" id="authSignIn" type="submit">Sign in</button>
           <button class="secondary-button" id="authCreate" type="button">Create account</button>
         </div>
+        <button class="text-button" id="authForgotPassword" type="button">Forgot password?</button>
         <p class="auth-status" id="authStatus" hidden></p>
       </form>
     </section>
@@ -49,17 +50,29 @@
           <h1>Poundwise Wealth</h1>
           <p class="hero-copy">Track every pound, protect today, enjoy life, and keep paying Future You first.</p>
         </div>
-        <div class="month-control">
-          <button class="icon-button" id="previousMonth" title="Previous month" aria-label="Previous month">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.8 5.2 9 12l6.8 6.8-1.6 1.6L5.8 12l8.4-8.4z"/></svg>
-          </button>
-          <label>
-            <span>Month</span>
-            <input type="month" id="monthPicker" />
-          </label>
-          <button class="icon-button" id="nextMonth" title="Next month" aria-label="Next month">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8.2 18.8 6.8-6.8-6.8-6.8 1.6-1.6 8.4 8.4-8.4 8.4z"/></svg>
-          </button>
+        <div class="topbar-actions">
+          <div class="user-profile" id="userProfile" hidden>
+            <span class="user-avatar" id="userAvatar">P</span>
+            <div>
+              <span>Signed in</span>
+              <strong id="userEmail">Account</strong>
+            </div>
+            <button class="icon-button" id="topSignOut" title="Sign out" aria-label="Sign out">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17v-2h4V9h-4V7h6v10zm-1.5-1.5L5 12l3.5-3.5 1.4 1.4L8.8 11H18v2H8.8l1.1 1.1zM4 5h6V3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6v-2H4z"/></svg>
+            </button>
+          </div>
+          <div class="month-control">
+            <button class="icon-button" id="previousMonth" title="Previous month" aria-label="Previous month">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.8 5.2 9 12l6.8 6.8-1.6 1.6L5.8 12l8.4-8.4z"/></svg>
+            </button>
+            <label>
+              <span>Month</span>
+              <input type="month" id="monthPicker" />
+            </label>
+            <button class="icon-button" id="nextMonth" title="Next month" aria-label="Next month">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8.2 18.8 6.8-6.8-6.8-6.8 1.6-1.6 8.4 8.4-8.4 8.4z"/></svg>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -412,6 +425,7 @@
             <div class="cloud-actions">
               <button class="secondary-button" id="signUpCloud" type="button">Create account</button>
               <button class="primary-button compact-button" id="signInCloud" type="button">Sign in</button>
+              <button class="secondary-button" id="forgotPasswordCloud" type="button">Forgot password</button>
             </div>
           </div>
           <div class="cloud-actions">
