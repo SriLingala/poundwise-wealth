@@ -1294,11 +1294,25 @@ textarea:focus {
   margin-top: 12px;
 }
 
+.cloud-grid[hidden] {
+  display: none;
+}
+
 .cloud-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+
+.cloud-connected-note {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.cloud-connected-note[hidden] {
+  display: none;
 }
 
 .compact-button {

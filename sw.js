@@ -1,12 +1,11 @@
-const CACHE_NAME = "poundwise-wealth-v11";
+const CACHE_NAME = "poundwise-wealth-v12";
 const APP_ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./manifest.webmanifest",
-  "./firestore.rules",
-  "./icons/poundwise-icon.svg"
+  "./icons/poundwise-icon.svg",
 ];
 
 self.addEventListener("install", (event) => {
@@ -27,9 +26,22 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+
+  // Never intercept Firebase / Google API requests — auth and Firestore must
+  // always reach the network so real-time syncing and error reporting work.
+  if (
+    url.hostname.endsWith("googleapis.com") ||
+    url.hostname.endsWith("firebaseio.com") ||
+    url.hostname.endsWith("firebaseapp.com")
+  ) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) =>
       cached || fetch(event.request).then((response) => {
+        if (!response || response.status !== 200 || response.type !== "basic") return response;
         const copy = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         return response;

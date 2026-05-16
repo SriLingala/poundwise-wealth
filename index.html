@@ -413,7 +413,7 @@
             </div>
             <span class="pill" id="cloudStatus">Not connected</span>
           </div>
-          <div class="cloud-grid">
+          <div class="cloud-grid" id="cloudCredentials">
             <label>
               <span>Email</span>
               <input type="email" id="syncEmail" placeholder="you@example.com" autocomplete="email" />
@@ -428,6 +428,7 @@
               <button class="secondary-button" id="forgotPasswordCloud" type="button">Forgot password</button>
             </div>
           </div>
+          <p class="cloud-connected-note muted" id="cloudConnectedNote" hidden></p>
           <div class="cloud-actions">
             <button class="secondary-button" id="syncCloudNow" type="button">Upload now</button>
             <button class="secondary-button" id="pullCloudNow" type="button">Download cloud</button>

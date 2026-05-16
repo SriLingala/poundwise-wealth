@@ -138,6 +138,8 @@ const els = {
   syncCloudNow: document.querySelector("#syncCloudNow"),
   pullCloudNow: document.querySelector("#pullCloudNow"),
   signOutCloud: document.querySelector("#signOutCloud"),
+  cloudCredentials: document.querySelector("#cloudCredentials"),
+  cloudConnectedNote: document.querySelector("#cloudConnectedNote"),
   emptyTemplate: document.querySelector("#emptyTemplate"),
 };
 
@@ -313,6 +315,13 @@ function renderCloudSettings() {
   els.syncCloudNow.disabled = !connected;
   els.pullCloudNow.disabled = !connected;
   els.signOutCloud.disabled = !connected;
+  if (els.cloudCredentials) els.cloudCredentials.hidden = connected;
+  if (els.cloudConnectedNote) {
+    els.cloudConnectedNote.hidden = !connected;
+    if (connected) {
+      els.cloudConnectedNote.textContent = `Signed in as ${cloud.session.email}. Changes sync automatically; use the buttons below for manual uploads or to switch accounts.`;
+    }
+  }
   if (connected) startCloudPolling();
   else stopCloudPolling();
 }
@@ -487,8 +496,9 @@ function scheduleCloudSync() {
 function startCloudPolling() {
   if (cloudPollTimer) return;
   cloudPollTimer = setInterval(() => {
+    if (document.visibilityState === "hidden") return;
     checkCloudUpdates(false).catch((error) => updateCloudStatus(error.message, true));
-  }, 10000);
+  }, 30000);
   checkCloudUpdates(false).catch((error) => updateCloudStatus(error.message, true));
 }
 
@@ -692,16 +702,23 @@ function exportStateSnapshot() {
 
 function applyCloudState(snapshot) {
   isApplyingCloudState = true;
-  state.expenses = Array.isArray(snapshot.expenses) ? snapshot.expenses : [];
-  state.bills = Array.isArray(snapshot.bills) ? snapshot.bills : [];
-  state.monthly = snapshot.monthly && typeof snapshot.monthly === "object" ? snapshot.monthly : {};
-  state.categories = normaliseCategories(snapshot.categories);
-  state.billPayments = snapshot.billPayments && typeof snapshot.billPayments === "object" ? snapshot.billPayments : {};
-  localStorage.setItem(activeStorageKey(), JSON.stringify(state));
-  populateCategories();
-  setDefaultCategoryValues();
-  render();
-  isApplyingCloudState = false;
+  try {
+    state.expenses = Array.isArray(snapshot.expenses) ? snapshot.expenses : [];
+    state.bills = Array.isArray(snapshot.bills) ? snapshot.bills : [];
+    state.monthly = snapshot.monthly && typeof snapshot.monthly === "object" ? snapshot.monthly : {};
+    state.categories = normaliseCategories(snapshot.categories);
+    state.billPayments = snapshot.billPayments && typeof snapshot.billPayments === "object" ? snapshot.billPayments : {};
+    try {
+      localStorage.setItem(activeStorageKey(), JSON.stringify(state));
+    } catch {
+      updateCloudStatus("Storage is blocked. Export CSV after changes.", true);
+    }
+    populateCategories();
+    setDefaultCategoryValues();
+    render();
+  } finally {
+    isApplyingCloudState = false;
+  }
 }
 
 function mergeSnapshots(cloudSnapshot, localSnapshot) {
@@ -1339,11 +1356,21 @@ function scheduleSettingsAutosave() {
 }
 
 function ensureMonthlySettings(key) {
+  let changed = false;
   if (!state.monthly[key]) {
     state.monthly[key] = {};
+    changed = true;
   }
 
   const settings = state.monthly[key];
+  const before = {
+    income: settings.income,
+    currentWealth: settings.currentWealth,
+    wealthGoal: settings.wealthGoal,
+    targets: settings.targets,
+    categoryBudgets: settings.categoryBudgets,
+  };
+
   settings.income = normaliseMoney(settings.income || 0);
   settings.currentWealth = normaliseMoney(settings.currentWealth || 0);
   settings.wealthGoal = normaliseMoney(settings.wealthGoal || 100000);
@@ -1352,9 +1379,22 @@ function ensureMonthlySettings(key) {
   state.categories.forEach((category) => {
     if (settings.categoryBudgets[category.name] === undefined) {
       settings.categoryBudgets[category.name] = normaliseMoney(category.budget);
+      changed = true;
     }
   });
-  persist();
+
+  if (
+    !changed &&
+    (before.income !== settings.income ||
+      before.currentWealth !== settings.currentWealth ||
+      before.wealthGoal !== settings.wealthGoal ||
+      before.targets !== settings.targets ||
+      before.categoryBudgets !== settings.categoryBudgets)
+  ) {
+    changed = true;
+  }
+
+  if (changed) persist();
   return settings;
 }
 
@@ -1374,10 +1414,16 @@ function getMonthAnalytics() {
     categoryActuals[bill.category] = (categoryActuals[bill.category] || 0) + Number(bill.actualAmount || 0);
   });
 
+  // Bucket actuals are summed from every category in the actuals map so that
+  // entries pointing at a deleted/renamed category still feed their original
+  // bucket (via getCategory's fallback) instead of silently vanishing from
+  // Future You / Wants / Needs totals.
+  Object.entries(categoryActuals).forEach(([name, actual]) => {
+    const bucket = getCategory(name).bucket;
+    bucketActuals[bucket] = (bucketActuals[bucket] || 0) + actual;
+  });
   state.categories.forEach((category) => {
-    const actual = categoryActuals[category.name] || 0;
     const budget = categoryBudgetsMap[category.name] || 0;
-    bucketActuals[category.bucket] = (bucketActuals[category.bucket] || 0) + actual;
     bucketBudgets[category.bucket] = (bucketBudgets[category.bucket] || 0) + budget;
   });
 
@@ -1502,6 +1548,14 @@ function exportCsv() {
 }
 
 function seedDemoData() {
+  const hasRealData =
+    state.expenses.some((expense) => !expense.demo) ||
+    state.bills.some((bill) => !bill.demo) ||
+    Object.values(state.monthly).some(monthlySettingsHasUserData);
+  if (hasRealData && !confirm("Replace the selected month with demo data? Your existing entries for this month will be removed.")) {
+    return;
+  }
+
   const key = selectedMonth;
   const day = (value) => `${key}-${String(Math.min(daysInMonth(key), value)).padStart(2, "0")}`;
 
@@ -1515,12 +1569,15 @@ function seedDemoData() {
   };
 
   state.bills = [
-    ["Rent", "Rent/Mortgage", 1050, 1],
-    ["Council tax", "Council tax", 168, 5],
-    ["Water bill", "Utilities", 38, 9],
-    ["Energy bill", "Utilities", 132, 16],
-    ["Phone and broadband", "Subscriptions", 44, 20],
-  ].map(([name, category, amount, dueDay]) => ({ id: crypto.randomUUID(), name, category, amount, dueDay, demo: true }));
+    ...state.bills.filter((bill) => !bill.demo),
+    ...[
+      ["Rent", "Rent/Mortgage", 1050, 1],
+      ["Council tax", "Council tax", 168, 5],
+      ["Water bill", "Utilities", 38, 9],
+      ["Energy bill", "Utilities", 132, 16],
+      ["Phone and broadband", "Subscriptions", 44, 20],
+    ].map(([name, category, amount, dueDay]) => ({ id: crypto.randomUUID(), name, category, amount, dueDay, demo: true })),
+  ];
 
   state.expenses = state.expenses.filter((expense) => !expense.demo || monthKey(expense.date) !== key);
   [
